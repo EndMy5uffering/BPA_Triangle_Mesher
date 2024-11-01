@@ -4,6 +4,8 @@
 #CHANGES TO THIS FILE WILL NOT CARRY OVER
 set(
 	SOURCE_FILES_SRC_FOLDER
-	./src/HelloWorld.cpp
+	./src/Geometry.cpp
 	./src/Main.cpp
+	./src/MUtils.cpp
+	./src/OctTree.cpp
 )

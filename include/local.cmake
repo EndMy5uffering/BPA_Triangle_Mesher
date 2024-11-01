@@ -4,5 +4,7 @@
 #CHANGES TO THIS FILE WILL NOT CARRY OVER
 set(
 	HEADER_FILES_INCLUDE_FOLDER
-	./include/HelloWorld.hpp
+	./include/Geometry.hpp
+	./include/MUtils.hpp
+	./include/OctTree.hpp
 )
