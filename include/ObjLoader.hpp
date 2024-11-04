@@ -16,6 +16,12 @@ namespace OBJ
         std::vector<unsigned int> indexBuffer;
     };
 
+    struct FaceData{
+        std::vector<int> vertexIDXList;
+        std::vector<int> vertexTextureIDXList;
+        std::vector<int> vertexNormalIDXList;
+    };
+
     void load(const char* path);
     void save();
 

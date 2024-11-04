@@ -6,7 +6,9 @@
 
 #include <iostream>
 
-int main(void) 
+#include <ObjLoader.hpp>
+
+void TreeTest()
 {
     Octree tree{{{0,0,0}, {10,10,10}}};
 
@@ -21,6 +23,17 @@ int main(void)
     tree.print();
 
     std::cout << "done\n";
+}
 
+void OBJLoaderTest()
+{
+    const char* path = "D:\\teapot.obj";
+    OBJ::load(path);
+}
+
+int main(void) 
+{
+    
+    OBJLoaderTest();
 }
 
