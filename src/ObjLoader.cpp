@@ -55,11 +55,6 @@ int parseIntFaceData(std::ifstream& stream)
     }
     while(stream.get(c))
     {
-        char next = stream.peek();
-        if(next == ' ' || next == '\n' || next == 0 || next == '/') 
-        {
-            break;
-        }
         if(std::isdigit(c)) 
         {
             accumulator += c;
@@ -68,6 +63,11 @@ int parseIntFaceData(std::ifstream& stream)
         {
             std::cerr << "Can not parse string literal as number: " << c << "\n";
             return 0;
+        }
+        char next = stream.peek();
+        if(next == ' ' || next == '\n' || next == 0 || next == '/') 
+        {
+            break;
         }
     }
     return std::stoi(accumulator);
@@ -98,10 +98,12 @@ OBJ::FaceData parseFaceData(std::ifstream& stream)
     OBJ::FaceData face;
     char c;
     int state = 0;
+    // I can either have f v v v or f v//n v//n v//n or f v/t/n v/t/n v/t/n
     while(stream.get(c) && c != '\n' && c == ' ')
     {
         int v = parseIntFaceData(stream);
-        if(stream.peek() == '/') stream.get(c);
+        // here it can be either a '/' or ' ' depending on the case above i should split the cases
+        if(stream.peek() == '/') stream.get(c); 
         int vt = parseIntFaceData(stream);
         if(stream.peek() == '/') stream.get(c);
         int vn = parseIntFaceData(stream);
