@@ -4,8 +4,10 @@
 #CHANGES TO THIS FILE WILL NOT CARRY OVER
 set(
 	SOURCE_FILES_SRC_FOLDER
+	./src/Box.cpp
 	./src/Geometry.cpp
 	./src/Main.cpp
-	./src/MUtils.cpp
-	./src/OctTree.cpp
+	./src/MLib.cpp
+	./src/ObjLoader.cpp
+	./src/Octree.cpp
 )

@@ -1,20 +1,20 @@
 #ifndef BOX_HPP
 #define BOX_HPP
 
-#include "MUtil.hpp"
+#include "MLib.hpp"
 
 namespace Box
 {
 
     struct AABB{
-        MUtil::Vec3 size;
-        MUtil::Vec3 position;
+        MLib::Vec3 position;
+        MLib::Vec3 size;
 
-        MUtil::Vec3 min() { return position - (size/2.0); }
-        MUtil::Vec3 max() { return position + (size/2.0); }
+        MLib::Vec3 min() { return position - (size/2.0); }
+        MLib::Vec3 max() { return position + (size/2.0); }
     };
 
-    bool collides(Box::AABB aabb, MUtil::Vec3 point);
+    bool contains(Box::AABB aabb, MLib::Vec3 point);
 
 } // namespace Box
 

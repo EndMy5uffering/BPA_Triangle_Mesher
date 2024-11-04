@@ -1,7 +1,7 @@
-#ifndef MUTIL_HPP
-#define MUTIL_HPP
+#ifndef MLIB_HPP
+#define MLIB_HPP
 
-namespace MUtil
+namespace MLib
 {
 
     template<typename T>
@@ -87,7 +87,7 @@ namespace MUtil
         }
     };
 
-} // namespace MUtil
+} // namespace MLib
 
 
-#endif //MUTIL_HPP
+#endif //MLIB_HPP
