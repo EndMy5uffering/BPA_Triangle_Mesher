@@ -4,9 +4,10 @@
 #CHANGES TO THIS FILE WILL NOT CARRY OVER
 set(
 	HEADER_FILES_INCLUDE_FOLDER
-	./include/Box.hpp
+	./include/Collider.hpp
 	./include/Geometry.hpp
 	./include/MLib.hpp
 	./include/ObjLoader.hpp
 	./include/Octree.hpp
+	./include/PBA.hpp
 )

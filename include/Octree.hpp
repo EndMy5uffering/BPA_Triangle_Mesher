@@ -4,37 +4,52 @@
 #include <vector>
 #include <memory>
 #include <Geometry.hpp>
-#include <Box.hpp>
+#include <Collider.hpp>
 #include <iostream>
 
-
-struct BoundingBox{
-    double mX;
-    double mY;
-    double mZ;
-    double mW;
-    double mH;
-    double mD;
-};
-
 struct Node{
-    Vertex* mData = nullptr;
+    MLib::Vec3* mData = nullptr;
     bool mIsLeaf = false;
-    Box::AABB mBounds;
+    Collider::AABB mBounds;
     std::unique_ptr<Node> mSubNodes[8];
 
-    bool insert(Vertex* vert);
-    bool search(double x, double y, double z, double w, double h, double d, std::vector<Vertex*>& data);
-    bool search(double x, double y, double z, double dist, std::vector<Vertex*>& verts);
+    bool insert(MLib::Vec3* vert);
+    void search(Collider::Sphere& s, std::vector<MLib::Vec3*>& verts);
 
     void print(int depth);
+
+    unsigned long depthCountValues()
+    {
+        if(mIsLeaf) return mData != nullptr ? 1 : 0;
+
+        int leafCount = 0;
+        for(int i = 0; i < 8; ++i)
+        {
+            leafCount += mSubNodes[i]->depthCountValues();
+        }
+
+        return leafCount + (mData != nullptr ? 1 : 0);
+    }
+
+    unsigned long depthCountNodes()
+    {
+        if(mIsLeaf) return 1;
+
+        int leafCount = 0;
+        for(int i = 0; i < 8; ++i)
+        {
+            leafCount += mSubNodes[i]->depthCountNodes();
+        }
+
+        return leafCount + 1;
+    }
 };
 
 class Octree{
 
 public:
 
-    Octree(Box::AABB bb) : 
+    Octree(Collider::AABB bb) : 
     mBounds{bb}
     {
         mRoot = std::make_unique<Node>();
@@ -42,15 +57,24 @@ public:
         mRoot->mIsLeaf = true;
     }
 
-    bool insert(Vertex* data);
-    bool search(double x, double y, double z, double w, double h, double d, std::vector<Vertex*>& data);
-    bool search(double x, double y, double z, double dist, std::vector<Vertex*>& verts);
+    bool insert(MLib::Vec3* data);
+    void search(Collider::Sphere &s, std::vector<MLib::Vec3*>& verts);
 
     void print();
 
+    unsigned long depthCountValues()
+    {
+        return mRoot->depthCountValues();
+    }
+
+    unsigned long depthCountNodes()
+    {
+        return mRoot->depthCountNodes();
+    }
+
 private:
 
-    Box::AABB mBounds;
+    Collider::AABB mBounds;
 
     std::unique_ptr<Node> mRoot;
 
@@ -59,5 +83,4 @@ private:
 
 
 #endif //OCTREE_HPP
-
 
