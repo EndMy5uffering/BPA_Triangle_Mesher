@@ -78,7 +78,18 @@ int main(void)
     MLib::Vec3 B{-2,2,1};
     MLib::Vec3 C{-1,-1,0};
 
-    std::cout << "Is seed triangle: " << PBA::IsSeedTriangle(A,B,C,2.6f) << "\n";
+    //std::cout << "Is seed triangle: " << PBA::IsSeedTriangle(A,B,C,2.6f) << "\n";
+
+    MLib::Vec3 p0{1,1,1};
+    MLib::Vec3 p1{-1,0,3};
+    MLib::Vec3 d0{-1,2,1};
+    MLib::Vec3 d1{-1.5,-2,1.5};
+
+    MLib::Vec3 poi{0,0,0};
+
+    bool found = MLib::LineLineIntersection(p0,d0,p1,d1,poi);
+
+    std::cout << "Found: " << found << " at: {" <<  poi.x << "; " << poi.y << "; " << poi.z << "}\n";
      
 }
 

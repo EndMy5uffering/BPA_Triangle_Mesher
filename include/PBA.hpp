@@ -26,7 +26,7 @@ namespace PBA
         cbo = (cbo - n*(MLib::dot(cbo, n)/MLib::dot(n,n)) - cb*(MLib::dot(cbo,cb)/MLib::dot(cb,cb))).norm();
 
         MLib::Vec3 poi;
-        if(!MLib::LineLineIntersection(p_1, cao, p_2, cbo, &poi)) return false;
+        if(!MLib::LineLineIntersection(p_1, cao, p_2, cbo, poi)) return false;
 
         if((poi - a).length2() > p) return false;
 

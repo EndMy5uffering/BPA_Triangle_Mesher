@@ -2,6 +2,7 @@
 #define MLIB_HPP
 
 #include <math.h>
+#include <cmath>
 
 namespace MLib
 {
@@ -59,6 +60,11 @@ namespace MLib
             return Vec3{x - rhs.x, y - rhs.y, z - rhs.z};
         }
 
+        Vec3 operator-() const
+        {
+            return Vec3{-x, -y, -z};
+        }
+
         template<typename T>
         Vec3 operator/(T rhs) const
         {
@@ -80,8 +86,19 @@ namespace MLib
             return Vec3{x * rhs, y * rhs, z * rhs};
         }
 
+        /**
+         * @brief Dot product
+         * 
+         * @param rhs Other vector
+         * @return double 
+         */
+        double operator*(const Vec3& rhs) const
+        {
+            return x * rhs.x + y * rhs.y + z * rhs.z;
+        }
+
         template<typename T>
-        Vec3& operator*=(T rhs) const
+        Vec3& operator*=(T rhs)
         {
             x *= rhs;
             y *= rhs; 
@@ -120,9 +137,13 @@ namespace MLib
         return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
     }
 
-    static Vec3 cross(const Vec3& lhs, const Vec3& rhs)
+    static Vec3 cross(const Vec3& a, const Vec3& b)
     {
-        return {(lhs.y * rhs.z) - (lhs.z * rhs.y), (lhs.z * rhs.x) - (lhs.x * rhs.z), (lhs.x * rhs.y) - (lhs.y * rhs.x)};
+        return {
+            a.y * b.z - a.z * b.y,
+            a.z * b.x - a.x * b.z,
+            a.x * b.y - a.y * b.x
+        };
     }
 
     struct Vec2{
@@ -193,29 +214,32 @@ namespace MLib
         }
     };
 
-    inline bool LineLineIntersection(Vec3 p0, Vec3 d0, Vec3 p1, Vec3 d1, Vec3* poi) {
-        Vec3 p0p1 = p1 - p0;
-        double d0d0 = d0.dot(d0);
-        double d1d1 = d1.dot(d1);
-        double d0d1 = d0.dot(d1);
-        double p0p1d0 = p0p1.dot(d0);
-        double p0p1d1 = p0p1.dot(d1);
+    inline bool LineLineIntersection(const Vec3& p0, const Vec3& d0, const Vec3& p1, const Vec3& d1, Vec3& poi) {
+        Vec3 n = cross(d0, d1); // Normal to both direction vectors
+        double normN = dot(n, n);  // Magnitude squared of the normal vector
+        if (std::fabs(normN) < 1e-9) return false; // Lines are parallel and do not intersect
 
-        double denom = d0d0 * d1d1 - d0d1 * d0d1;
+        //https://en.wikipedia.org/wiki/Line%E2%80%93line_intersection
+        double x1 = p0.x;
+        double y1 = p0.y;
+        double x2 = p0.x + d0.x;
+        double y2 = p0.y + d0.y;
+        double x3 = p1.x;
+        double y3 = p1.y;
+        double x4 = p1.x + d1.x;
+        double y4 = p1.y + d1.y;
 
-        if (fabs(denom) < 1e-6) return false; 
+        double t = ((x1-x3)*(y3-y4)-(y1-y3)*(x3-x4))/((x1-x2)*(y3-y4)-(y1-y2)*(x3-x4));
+        double s = -((x1-x2)*(y1-y3)-(y1-y2)*(x1-x3))/((x1-x2)*(y3-y4)-(y1-y2)*(x3-x4));
 
-        double t = (p0p1d1 * d0d1 - p0p1d0 * d1d1) / denom;
-        double s = (p0p1d1 + t * d0d1) / d1d1;
+        Vec3 poi0 = p0 + (d0 * t);
+        Vec3 poi1 = p1 + (d1 * s);
 
-        Vec3 closestPointLine1 = p0 + d0 * t;
-        Vec3 closestPointLine2 = p1 + d1 * s;
+        poi = poi0 + (poi1 - poi0) * 0.5;
 
-        Vec3 i = (closestPointLine1 + closestPointLine2) * 0.5;
-        poi->x = i.x;
-        poi->y = i.y;
-        poi->z = i.z;
-        return true;
+        if((poi0 - poi1).length2() < 1e-9) return true; // Points are to far appart
+
+        return false;
     }
 
 } // namespace MLib
