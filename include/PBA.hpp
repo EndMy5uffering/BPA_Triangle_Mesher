@@ -8,9 +8,9 @@
 namespace PBA
 {
 
-    static bool IsSeedTriangle(MLib::Vec3 a, MLib::Vec3 b, MLib::Vec3 c, float p)
+    static bool IsSeedTriangle(const MLib::Vec3& a, const MLib::Vec3& b, const MLib::Vec3& c, MLib::Vec3& sphere_center, float p)
     {
-
+        double r2 = p * p;
         MLib::Vec3 p_1 = c + (a - c) * 0.5;
         MLib::Vec3 p_2 = c + (b - c) * 0.5;
 
@@ -28,10 +28,18 @@ namespace PBA
         MLib::Vec3 poi;
         if(!MLib::LineLineIntersection(p_1, cao, p_2, cbo, poi)) return false;
 
-        if((poi - a).length2() > p) return false;
+        double dist = (poi - a).length2();
+
+        if(dist > r2) return false;
+
+        double ss = sqrt(r2 - dist);
+
+        sphere_center = poi + n * ss;
 
         return true;
-    }   
+    }
+    
+     
 
 }
 

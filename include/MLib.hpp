@@ -36,7 +36,7 @@ namespace MLib
 
         Vec3 norm() const
         {
-            double l = length2();
+            double l = length();
             return Vec3{x/l, y/l, z/l};
         }
 

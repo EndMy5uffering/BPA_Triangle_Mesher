@@ -73,12 +73,12 @@ int main(void)
 {
     //OBJLoaderTest();
 
-
     MLib::Vec3 A{1,1,0};
     MLib::Vec3 B{-2,2,1};
     MLib::Vec3 C{-1,-1,0};
+    MLib::Vec3 sphere_center{-1,-1,0};
 
-    //std::cout << "Is seed triangle: " << PBA::IsSeedTriangle(A,B,C,2.6f) << "\n";
+    std::cout << "Is seed triangle: " << PBA::IsSeedTriangle(A,B,C,sphere_center,3.0f) << " at: {" <<  sphere_center.x << "; " << sphere_center.y << "; " << sphere_center.z << "}\n";
 
     MLib::Vec3 p0{1,1,1};
     MLib::Vec3 p1{-1,0,3};
@@ -90,6 +90,6 @@ int main(void)
     bool found = MLib::LineLineIntersection(p0,d0,p1,d1,poi);
 
     std::cout << "Found: " << found << " at: {" <<  poi.x << "; " << poi.y << "; " << poi.z << "}\n";
-     
+    
 }
 
