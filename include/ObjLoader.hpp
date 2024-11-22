@@ -6,6 +6,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <Geometry.hpp>
 
 #include <MLib.hpp>
 
@@ -96,6 +97,32 @@ namespace OBJ
 
         file.close();
         return model;
+    }
+
+    /**
+     * @brief This function could crash if normals or vertices are missing or the indeces are pointing to a wrong location
+     * 
+     * @param mesh 
+     * @return std::vector<Geometry::Vertex> 
+     */
+    inline std::vector<Geometry::Vertex> ModelToVertexList(Model& mesh)
+    {
+        std::vector<Geometry::Vertex> verts;
+        verts.resize(mesh.vertices.size(), {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}});
+
+        for(Face& f : mesh.faces)
+        {
+            for(int i = 0; i < 3; ++i)
+            {
+                MLib::Vec3 v = mesh.vertices[f.vertexIndices[i]];
+                MLib::Vec3 n = mesh.normals[f.normalIndices[i]];
+                
+                verts[f.vertexIndices[i]].position = v;
+                verts[f.vertexIndices[i]].normal = ((verts[f.vertexIndices[i]].normal + n) * 0.5).norm();
+
+            }
+        }
+        return verts;
     }
 
 }

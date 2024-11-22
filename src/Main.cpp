@@ -7,6 +7,8 @@
 #include <Octree.hpp>
 #include <ObjLoader.hpp>
 
+#include <list>
+
 #include<PBA.hpp>
 
 #define MEASURE_EXECUTION_TIME(code_block, time_pre_text)                   \
@@ -22,7 +24,11 @@ void OBJLoaderTest()
 {
     OBJ::Model data;
 
-    MEASURE_EXECUTION_TIME({data = OBJ::parse("D:\\teapot.obj");}, "OBJ Loading Time: ")
+    MEASURE_EXECUTION_TIME({data = OBJ::parse("D:\\Bunny.obj");}, "OBJ Loading Time: ")
+
+    MEASURE_EXECUTION_TIME({OBJ::ModelToVertexList(data);}, "Time to tranform mesh to vert list: ");
+
+    std::vector<Geometry::Vertex> vlist = OBJ::ModelToVertexList(data);
 
     Octree tree{{{0,0,0}, {20,20,20}}};
     MEASURE_EXECUTION_TIME({
@@ -68,17 +74,16 @@ void OBJLoaderTest()
     std::cout << "Vectors are same: " << stupidsearch << "\n";
 }
 
-
 int main(void) 
 {
-    //OBJLoaderTest();
+    OBJLoaderTest();
 
     MLib::Vec3 A{1,1,0};
     MLib::Vec3 B{-2,2,1};
     MLib::Vec3 C{-1,-1,0};
     MLib::Vec3 sphere_center{-1,-1,0};
 
-    std::cout << "Is seed triangle: " << PBA::IsSeedTriangle(A,B,C,sphere_center,3.0f) << " at: {" <<  sphere_center.x << "; " << sphere_center.y << "; " << sphere_center.z << "}\n";
+    //std::cout << "Is seed triangle: " << PBA::IsSeedTriangle(A,B,C,sphere_center,3.0f) << " at: {" <<  sphere_center.x << "; " << sphere_center.y << "; " << sphere_center.z << "}\n";
 
     MLib::Vec3 p0{1,1,1};
     MLib::Vec3 p1{-1,0,3};
@@ -87,9 +92,9 @@ int main(void)
 
     MLib::Vec3 poi{0,0,0};
 
-    bool found = MLib::LineLineIntersection(p0,d0,p1,d1,poi);
+    //bool found = MLib::LineLineIntersection(p0,d0,p1,d1,poi);
 
-    std::cout << "Found: " << found << " at: {" <<  poi.x << "; " << poi.y << "; " << poi.z << "}\n";
-    
+    //std::cout << "Found: " << found << " at: {" <<  poi.x << "; " << poi.y << "; " << poi.z << "}\n";
+
 }
 
