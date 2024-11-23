@@ -6,6 +6,7 @@ set(
 	HEADER_FILES_INCLUDE_FOLDER
 	./include/Collider.hpp
 	./include/Geometry.hpp
+	./include/Grid.hpp
 	./include/MLib.hpp
 	./include/ObjLoader.hpp
 	./include/Octree.hpp

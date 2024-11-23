@@ -34,6 +34,14 @@ namespace MLib
             return (x*x) + (y*y) + (z*z);
         }
 
+        double dist(const Vec3& other) const
+        {
+            double _x = x - other.x;
+            double _y = y - other.y;
+            double _z = z - other.z;
+            return sqrt((_x*_x) + (_y*_y) + (_z*_z));
+        }
+
         Vec3 norm() const
         {
             double l = length();
@@ -106,27 +114,27 @@ namespace MLib
             return *this;
         }
 
-        bool operator<(Vec3& rhs) const
+        bool operator<(const Vec3& rhs) const
         {
             return x < rhs.x && y < rhs.y && z < rhs.z;
         }
 
-        bool operator>(Vec3& rhs) const
+        bool operator>(const Vec3& rhs) const
         {
             return x > rhs.x && y > rhs.y && z > rhs.z;
         }
 
-        bool operator>=(Vec3& rhs) const
+        bool operator>=(const Vec3& rhs) const
         {
             return x >= rhs.x && y >= rhs.y && z >= rhs.z;
         }
 
-        bool operator<=(Vec3& rhs) const
+        bool operator<=(const Vec3& rhs) const
         {
             return x <= rhs.x && y <= rhs.y && z <= rhs.z;
         }
 
-        bool operator==(Vec3& rhs) const
+        bool operator==(const Vec3& rhs) const
         {
             return x == rhs.x && y == rhs.y && z == rhs.z;
         }

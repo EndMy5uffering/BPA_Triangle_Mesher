@@ -6,6 +6,7 @@ set(
 	SOURCE_FILES_SRC_FOLDER
 	./src/Collider.cpp
 	./src/Geometry.cpp
+	./src/Grid.cpp
 	./src/Main.cpp
 	./src/MLib.cpp
 	./src/ObjLoader.cpp

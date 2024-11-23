@@ -16,25 +16,11 @@ namespace Geometry
         }
     };
 
-    struct Edge{
-        Vertex& v1;
-        Vertex& v2;
-
-        bool operator==(Edge& rhs)
-        {
-            return (v1 == rhs.v1 || v1 == rhs.v2) && (v2 == rhs.v1 || v2 == rhs.v2);
-        }
-    };
-
     struct Triangle{
 
-        Vertex& v1;
-        Vertex& v2;
-        Vertex& v3;
-
-        Edge& e1;
-        Edge& e2;
-        Edge& e3;
+        int v1_idx;
+        int v2_idx;
+        int v3_idx;
 
     };
 }
