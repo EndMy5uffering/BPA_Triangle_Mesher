@@ -76,25 +76,22 @@ void OBJLoaderTest()
 
 int main(void) 
 {
-    OBJLoaderTest();
+    //OBJLoaderTest();
 
     MLib::Vec3 A{1,1,0};
     MLib::Vec3 B{-2,2,1};
     MLib::Vec3 C{-1,-1,0};
-    MLib::Vec3 sphere_center{-1,-1,0};
+    MLib::Vec3 D{1,-2,-1};
+    MLib::Vec3 n1{0.24, -0.24, 0.94};
+    MLib::Vec3 n2{0.3, -0.3, 0.9};
 
-    //std::cout << "Is seed triangle: " << PBA::IsSeedTriangle(A,B,C,sphere_center,3.0f) << " at: {" <<  sphere_center.x << "; " << sphere_center.y << "; " << sphere_center.z << "}\n";
+    PBA::VertList list;
+    list.emplace_back(A, n1, MLib::Vec2{0,0});
+    list.emplace_back(B, n1, MLib::Vec2{0,0});
+    list.emplace_back(C, n1, MLib::Vec2{0,0});
+    list.emplace_back(D, n2, MLib::Vec2{0,0});
 
-    MLib::Vec3 p0{1,1,1};
-    MLib::Vec3 p1{-1,0,3};
-    MLib::Vec3 d0{-1,2,1};
-    MLib::Vec3 d1{-1.5,-2,1.5};
-
-    MLib::Vec3 poi{0,0,0};
-
-    //bool found = MLib::LineLineIntersection(p0,d0,p1,d1,poi);
-
-    //std::cout << "Found: " << found << " at: {" <<  poi.x << "; " << poi.y << "; " << poi.z << "}\n";
+    PBA::PivotBall(list, 3.0);
 
 }
 

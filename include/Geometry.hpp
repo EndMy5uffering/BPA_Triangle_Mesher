@@ -10,6 +10,10 @@ namespace Geometry
         MLib::Vec3 normal;
         MLib::Vec2 texture;
 
+        Vertex(MLib::Vec3 _position, MLib::Vec3 _normal, MLib::Vec2 _texture)
+        : position{_position}, normal{_normal}, texture{_texture}
+        {}
+
         bool operator==(Vertex& rhs)
         {
             return position == rhs.position && normal == rhs.normal && texture == rhs.texture;

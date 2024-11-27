@@ -9,6 +9,9 @@
 #include <list>
 #include <array>
 
+//#define ASSERT(x) { if (!(x)) __debugbreak(); }
+#define ASSERT(x, m) { if (!(x)) {std::cout << "[DEBUG_ASSERT]: " << m << "\n"; __debugbreak();} }
+#define LOG(m) {std::cout << "[DEBUG_LOG (" << __LINE__ << " | " << __FILE__ <<")]: " << m << "\n";}
 
 namespace PBA
 {
@@ -57,8 +60,8 @@ namespace PBA
     static bool IsSeedTriangle(const Geometry::Vertex& a, const Geometry::Vertex& b, const Geometry::Vertex& c, MLib::Vec3& sphere_center, double p)
     {
         double r2 = p * p;
-        MLib::Vec3 p_1 = c.position + (a.position - c.position) * 0.5;
-        MLib::Vec3 p_2 = c.position + (b.position - c.position) * 0.5;
+        MLib::Vec3 p_1 = (a.position + c.position) * 0.5;
+        MLib::Vec3 p_2 = (b.position + c.position) * 0.5;
 
         MLib::Vec3 n = MLib::cross((a.position-c.position),(b.position-c.position)).norm();
 
@@ -94,9 +97,7 @@ namespace PBA
         MLib::Vec3 c_c = (point_data[e->start].position + point_data[e->end].position)*0.5;
         double r_c = (e->sphere_center - c_c).length();
 
-        MLib::Vec3 norm_edge = ((point_data[e->start].normal + point_data[e->end].normal) * 0.5).norm();
         MLib::Vec3 n_c = (point_data[e->start].position - point_data[e->end].position).norm();
-
 
         std::vector<size_t> verts; // spacial query to find 2p neighbourhood
         for(size_t i = 0; i < point_data.size(); ++i)
@@ -107,7 +108,7 @@ namespace PBA
             }
         }
 
-        size_t idx_smalest = -1;
+        int idx_smalest = -1;
         MLib::Vec3 n_sphere_center;
         double l_dot = DBL_MIN;
         for(size_t i : verts)
@@ -120,19 +121,19 @@ namespace PBA
             MLib::Vec3 c_p = point_data[i].position + (n_c*d);
 
             double r_p = sqrt(p*p - d*d);
-            double h = 0.5 + (r_c * r_c - r_p * r_p)/(2 * d*d);
+            double h = 0.5 + ((r_c * r_c) - (r_p * r_p))/(2.0 * (c_c - c_p).length2());
             double r_i = sqrt(r_c*r_c - h*h*d*d);
             MLib::Vec3 c_i = c_c + ((c_p - c_c)*h);
 
             MLib::Vec3 t = (c_p - c_c).cross(n_c).norm();
 
             MLib::Vec3 p_0 = c_i - t * r_i;
-
             MLib::Vec3 p_1 = c_i + t * r_i;
+
             double dot0 = (p_0 - c_c) * (e->sphere_center - c_c);
             double dot1 = (p_1 - c_c) * (e->sphere_center - c_c);
 
-            if(dot0 < l_dot || dot1 < l_dot) continue;
+            if(dot0 < l_dot && dot1 < l_dot) continue;
             if(dot0 > dot1)
             {
                 n_sphere_center = p_0;
@@ -146,28 +147,31 @@ namespace PBA
             idx_smalest = i;
         }
 
-        int c = 0;
+        if(idx_smalest == -1) return false;
+
         for(size_t i : verts)
         {
-            if((n_sphere_center - point_data[i].position).length() < p) c += 1;
-            if(c > 3) return false;
+            if(i == e->start || i == e->end || i == idx_smalest) continue;
+            double len = (n_sphere_center - point_data[i].position).length();
+            bool sm = len < p;
+            if(sm) return false;
         }
 
         o_sphere_center = n_sphere_center;
         o_s_k = idx_smalest;
 
-        return false;
+        return true;
     }
 
-    static bool get_active_edge(Front& F, Edge* e) 
+    static bool get_active_edge(Front& F, Edge*& e) 
     {
         if(F.empty()) return false;
 
-        for(Edge& i : F)
+        for(Front::iterator it = F.begin(); it != F.end(); ++it)
         {
-            if(i.state == ACTIVE) 
+            if(it->state == ACTIVE) 
             {
-                e = &i;
+                e = &(*it); // cursed
                 return true;
             }
         }
@@ -176,7 +180,7 @@ namespace PBA
 
     static bool not_used(uint32_t *usedIndex, int s)
     {
-        return ((usedIndex[s / 32] >> (s % 32)) & 1) == 1;
+        return ((usedIndex[s / 32] >> (s % 32)) & 1) == 0;
     }
     
     static void mark_as_used(uint32_t *usedIndex, int s)
@@ -198,9 +202,14 @@ namespace PBA
         //add edges e_ik, e_kj
         //remove edge e_ij <- its no longer used as we found a new triangle
         //e_ij is enclosed in the two triangles and no longer of interest
-
+        
         Edge e_ik{e_ij->start, s_k, e_ij->end, ACTIVE, sphere_center};
         Edge e_kj{s_k, e_ij->end, e_ij->start, ACTIVE, sphere_center};
+        ASSERT(s_k >= 0, "s_k was not > 0")
+        ASSERT(e_ik.start >= 0, "e_ik.start was not > 0")
+        ASSERT(e_ik.end >= 0, "e_ik.end was not > 0")
+        ASSERT(e_kj.start >= 0, "e_kj.start was not > 0")
+        ASSERT(e_kj.end >= 0, "e_kj.start was not > 0")
         F.push_back(e_ik);
         F.push_back(e_kj);
         F.remove(*e_ij);
@@ -228,6 +237,7 @@ namespace PBA
                 neighbourhood.push_back(i);
             }
         }
+        return neighbourhood;
     }
 
     static bool find_seed_triangle(const VertList& verts, const double p, uint32_t* usedIndex, int& s0, int& s1, int& s2, MLib::Vec3& sphere_center) 
@@ -251,14 +261,14 @@ namespace PBA
                     if(n == m) continue;
 
                     const Geometry::Vertex& v0 = verts[i];
-                    const Geometry::Vertex& v1 = verts[m];
-                    const Geometry::Vertex& v2 = verts[n];
+                    const Geometry::Vertex& v1 = verts[p2Neighbourhood[m]];
+                    const Geometry::Vertex& v2 = verts[p2Neighbourhood[n]];
 
                     if(IsSeedTriangle(v0, v1, v2, sphere_center, p))
                     {
                         s0 = i;
-                        s1 = m;
-                        s2 = n;
+                        s1 = p2Neighbourhood[m];
+                        s2 = p2Neighbourhood[n];
                         return true;
                     }
                 }
@@ -316,8 +326,12 @@ namespace PBA
         Front F;
         Mesh m;
 
-        while(true)
+        bool found_seed = true;
+        
+
+        while(true && found_seed)
         {
+            found_seed = false;
             MLib::Vec3 sphere_center;
             {
                 int s_i = -1, s_j = -1, s_k = -1;
@@ -330,12 +344,14 @@ namespace PBA
                     insert_edge(e_ij, F);
                     insert_edge(e_jk, F);
                     insert_edge(e_ki, F);
+                    found_seed = true;
                 }
             }
 
             Edge* e_ij = nullptr;
             while(get_active_edge(F, e_ij))
             {
+                ASSERT(e_ij != nullptr, "e_ij as null")
                 int s_k = -1; // index of vertex s_k in point cloud data
                 int s_i = e_ij->start;
                 int s_j = e_ij->end;
