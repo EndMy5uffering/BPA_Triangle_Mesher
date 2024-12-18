@@ -14,7 +14,12 @@ namespace Geometry
         : position{_position}, normal{_normal}, texture{_texture}
         {}
 
-        bool operator==(Vertex& rhs)
+        bool operator==(Vertex& rhs) const
+        {
+            return position == rhs.position && normal == rhs.normal && texture == rhs.texture;
+        }
+
+        bool operator==(const Vertex& rhs) const
         {
             return position == rhs.position && normal == rhs.normal && texture == rhs.texture;
         }
@@ -25,6 +30,7 @@ namespace Geometry
         int v1_idx;
         int v2_idx;
         int v3_idx;
+        bool can_export = true;
 
     };
 }

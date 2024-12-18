@@ -24,60 +24,24 @@ void OBJLoaderTest()
 {
     OBJ::Model data;
 
-    MEASURE_EXECUTION_TIME({data = OBJ::parse("D:\\Bunny.obj");}, "OBJ Loading Time: ")
+    MEASURE_EXECUTION_TIME({data = OBJ::parse("D:\\Bibliotheken\\Desktop\\MeshingOutput\\Input\\Bunny.obj");}, "OBJ Loading Time: ")
 
     MEASURE_EXECUTION_TIME({OBJ::ModelToVertexList(data);}, "Time to tranform mesh to vert list: ");
 
-    std::vector<Geometry::Vertex> vlist = OBJ::ModelToVertexList(data);
+    PBA::VertList vlist = OBJ::ModelToVertexList(data);
 
-    Octree tree{{{0,0,0}, {20,20,20}}};
-    MEASURE_EXECUTION_TIME({
-        for(size_t i = 0; i < data.vertices.size(); ++i)
-        {
-            if(!tree.insert(&data.vertices[i])) std::cerr << "Did not insert point at ( " << data.vertices[i].x << ", " << data.vertices[i].y << ", " << data.vertices[i].z << " )\n";
-        }  
-    }, "Tree insertion time: ")
-    std::cout << "Inserted " << data.vertices.size() << " vertices\n";
-    std::cout << "Values in tree found: " << tree.depthCountValues() << "\n";
-    std::cout << "Nodes in tree found: " << tree.depthCountNodes() << "\n";
-
-
-    std::vector<MLib::Vec3*> verts;
-    Collider::Sphere s{1,1,1,2};
-    MEASURE_EXECUTION_TIME({tree.search(s, verts);}, "Tree Search: ")
-    std::cout << "Found verts: " << verts.size() << "\n";
-
-    std::vector<MLib::Vec3*> verts2;
-    MEASURE_EXECUTION_TIME({
-        for(size_t i = 0; i < data.vertices.size(); ++i)
-        {
-            if(s >= data.vertices[i]) verts2.push_back(&data.vertices[i]);
-        }
-    }, "Stupid search: ")
+    PBA::Mesh m{std::move(PBA::PivotBall(vlist, 0.02))};
     
+    std::cout << "Done meshing\n"; 
+    std::cout << "Saving file\n"; 
 
-    std::cout << "Found verts2: " << verts2.size() << "\n";
+    OBJ::SaveObject("D:\\Bibliotheken\\Desktop\\MeshingOutput\\BunnyOutput.obj", m, vlist);
+    std::cout << "Done done\n"; 
 
-    bool stupidsearch = (verts2.size() == verts.size());
-    MEASURE_EXECUTION_TIME({
-        for(MLib::Vec3* v : verts)
-        {
-            bool found = false;
-            for(MLib::Vec3* v2 : verts2)
-            {
-                if(*v2 == *v) found = true;
-            }
-            stupidsearch &= found;
-        }
-    },"Lazy compair: ")
-
-    std::cout << "Vectors are same: " << stupidsearch << "\n";
 }
 
-int main(void) 
+void test2()
 {
-    //OBJLoaderTest();
-
     MLib::Vec3 A{1,1,0};
     MLib::Vec3 B{-2,2,1};
     MLib::Vec3 C{-1,-1,0};
@@ -91,7 +55,23 @@ int main(void)
     list.emplace_back(C, n1, MLib::Vec2{0,0});
     list.emplace_back(D, n2, MLib::Vec2{0,0});
 
-    PBA::PivotBall(list, 3.0);
+    PBA::Mesh m{std::move(PBA::PivotBall(list, 3.0))};
+    std::cout << "Done meshing\n"; 
 
+    OBJ::SaveObject("D:\\Bibliotheken\\Desktop\\MeshingOutput\\OBJOUTPUT_TestFunc.obj", m, list);
+}
+
+int main(void) 
+{
+    //std::ofstream out("LOG.txt");
+    //std::streambuf *coutbuf = std::cout.rdbuf(); //save old buf
+    //std::cout.rdbuf(out.rdbuf()); //redirect std::cout to out.txt!
+
+    OBJLoaderTest();
+
+    //test2();
+
+
+    std::cout << "Done...\n"; 
 }
 

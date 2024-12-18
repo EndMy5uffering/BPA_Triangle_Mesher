@@ -58,6 +58,10 @@
         "optional": "cpp",
         "ratio": "cpp",
         "sstream": "cpp",
-        "algorithm": "cpp"
+        "algorithm": "cpp",
+        "array": "cpp",
+        "bitset": "cpp",
+        "map": "cpp",
+        "xtree": "cpp"
     }
 }

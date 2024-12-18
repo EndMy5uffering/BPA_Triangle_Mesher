@@ -220,6 +220,11 @@ namespace MLib
         {
             return x == rhs.x && y == rhs.y;
         }
+
+        bool operator==(const Vec2& rhs) const
+        {
+            return x == rhs.x && y == rhs.y;
+        }
     };
 
     inline bool LineLineIntersection(const Vec3& p0, const Vec3& d0, const Vec3& p1, const Vec3& d1, Vec3& poi) {

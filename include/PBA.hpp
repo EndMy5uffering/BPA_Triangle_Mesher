@@ -4,14 +4,19 @@
 #include <Collider.hpp>
 #include <Geometry.hpp>
 #include <MLib.hpp>
-#include <ObjLoader.hpp>
+#include <vector>
+#include <iostream>
+#include <cmath>
 
 #include <list>
 #include <array>
+#include <bitset>
 
 //#define ASSERT(x) { if (!(x)) __debugbreak(); }
 #define ASSERT(x, m) { if (!(x)) {std::cout << "[DEBUG_ASSERT]: " << m << "\n"; __debugbreak();} }
 #define LOG(m) {std::cout << "[DEBUG_LOG (" << __LINE__ << " | " << __FILE__ <<")]: " << m << "\n";}
+
+# define M_PI   3.14159265358979323846  /* pi */
 
 namespace PBA
 {
@@ -46,19 +51,69 @@ namespace PBA
         bool operator==(const Edge& other) const
         {
             return (start == other.start) &&
-                (end == other.end) &&
-                (state == other.state) &&
-                (across == other.across) &&
-                (sphere_center == other.sphere_center);
+                (end == other.end);
         }
     };
 
     typedef std::list<Edge> Front;
-    typedef std::list<Geometry::Triangle> Mesh;
+    struct Mesh{
+        std::list<Geometry::Triangle> m_triangles;
+        std::vector<bool> vertex_used;
+
+        Mesh(){}
+
+        Mesh(Mesh& m) 
+        : 
+        m_triangles{m.m_triangles}, 
+        vertex_used{m.vertex_used}
+        {
+
+        }
+
+        Mesh(Mesh&& m) noexcept
+        : m_triangles(std::move(m.m_triangles)),
+        vertex_used(std::move(m.vertex_used)) 
+        {
+        }
+
+        Mesh& operator=(Mesh& m)
+        {
+            m_triangles = m.m_triangles;
+            vertex_used = m.vertex_used;
+            return *this;
+        }
+
+        Mesh& operator=(Mesh&& m)
+        {
+            std::swap(m_triangles, m.m_triangles);
+            std::swap(vertex_used, m.vertex_used);
+            return *this;
+        }
+    };
+
     typedef std::vector<Geometry::Vertex> VertList;
 
-    static bool IsSeedTriangle(const Geometry::Vertex& a, const Geometry::Vertex& b, const Geometry::Vertex& c, MLib::Vec3& sphere_center, double p)
+    static std::vector<int> find2pNeighbourhood(const VertList& verts, MLib::Vec3 pos, double p)
     {
+        std::vector<int> neighbourhood;
+        double p2 = 2.0*p;
+        for(size_t i = 0; i < verts.size(); ++i)
+        {
+            double dist = verts[i].position.dist(pos);
+            if(dist <= p2 && dist > 0)
+            {
+                neighbourhood.push_back(i);
+            }
+        }
+        return neighbourhood;
+    }
+
+    static bool IsSeedTriangle(const Geometry::Vertex& a, const Geometry::Vertex& b, const Geometry::Vertex& c, MLib::Vec3& sphere_center, double p, const PBA::VertList& vlist)
+    {
+        std::cout << "##### Testing seed triangle: \n\t< " 
+        << a.position.x << ", " << a.position.y << ", " << a.position.z << " >"
+        << "\n\t< " << b.position.x << ", " << b.position.y << ", " << b.position.z << " >"
+        << "\n\t< " << c.position.x << ", " << c.position.y << ", " << c.position.z << " >\n";
         double r2 = p * p;
         MLib::Vec3 p_1 = (a.position + c.position) * 0.5;
         MLib::Vec3 p_2 = (b.position + c.position) * 0.5;
@@ -87,7 +142,51 @@ namespace PBA
 
         sphere_center = poi + n * ss;
 
+        std::vector<int> neighbours = find2pNeighbourhood(vlist, sphere_center, p);
+        std::cout << ">\tHas neighbours ( " << neighbours.size() << " )!\n";
+
+        for(size_t i = 0; i < neighbours.size(); ++i)
+        {
+            const Geometry::Vertex& tocheck = vlist[neighbours[i]];
+            if(tocheck == a || tocheck == b || tocheck == c) continue;
+            double dist = tocheck.position.dist(sphere_center);
+            if(dist < p) 
+            {
+                std::cout << ">\tTo close at sphere center for seed triangle: " << dist << " for sphere with radious " << p <<"\n";
+                return false;
+            }
+        }
+        std::cout << "########################\n";
+        std::cout << "###### Is seed triangle!\n";
+        std::cout << "########################\n";
         return true;
+    }
+
+    /**
+     * @brief Returns the Angle between two vectors in the range [0, 2PI]
+     * 
+     * @param v0 First vector
+     * @param v1 Second vector
+     * @param n Normal on the plane the two points are on
+     * @return angle as double between 0 and 2PI
+     */
+    static double get_rotation(MLib::Vec3 v0, MLib::Vec3 v1, MLib::Vec3 n)
+    {
+        MLib::Vec3 v0n = v0.norm();
+        MLib::Vec3 v1n = v1.norm();
+        MLib::Vec3 nn = n.norm();
+
+        double dotuv = v0n.dot(v1n);
+        double theta = acos(dotuv);
+
+        MLib::Vec3 cross = v0n.cross(v1n);
+        double sign = nn.dot(cross);
+
+        if(sign < 0)
+        {
+            theta = 2.0 * M_PI - theta;
+        }
+        return theta;
     }
 
     static bool ball_pivote(const VertList& point_data, const Edge* e, int& o_s_k, MLib::Vec3& o_sphere_center, double p) 
@@ -97,7 +196,12 @@ namespace PBA
         MLib::Vec3 c_c = (point_data[e->start].position + point_data[e->end].position)*0.5;
         double r_c = (e->sphere_center - c_c).length();
 
-        MLib::Vec3 n_c = (point_data[e->start].position - point_data[e->end].position).norm();
+        MLib::Vec3 vsphcn = (e->sphere_center - c_c).norm();
+
+        MLib::Vec3 n_c = (point_data[e->end].position - point_data[e->start].position).norm();
+
+        MLib::Vec3 norm_at_rot = (point_data[e->start].normal + point_data[e->end].normal) * 0.5;
+        MLib::Vec3 corss_direction_normed = (point_data[e->across].position - (point_data[e->end].position + n_c*((point_data[e->across].position - point_data[e->end].position).dot(n_c)))).norm().cross(norm_at_rot).norm();
 
         std::vector<size_t> verts; // spacial query to find 2p neighbourhood
         for(size_t i = 0; i < point_data.size(); ++i)
@@ -110,12 +214,14 @@ namespace PBA
 
         int idx_smalest = -1;
         MLib::Vec3 n_sphere_center;
-        double l_dot = DBL_MIN;
+        double smalestAngle = 99999.9999;
         for(size_t i : verts)
         {
             if(i == e->start || i == e->end || i == e->across) continue;
 
-            double d = n_c * (c_c - point_data[i].position);
+            MLib::Vec3 dir_to_point = point_data[i].position - c_c;
+            double d = n_c * (dir_to_point);
+
             if(std::abs(d) > p) continue;
 
             MLib::Vec3 c_p = point_data[i].position + (n_c*d);
@@ -130,21 +236,22 @@ namespace PBA
             MLib::Vec3 p_0 = c_i - t * r_i;
             MLib::Vec3 p_1 = c_i + t * r_i;
 
-            double dot0 = (p_0 - c_c) * (e->sphere_center - c_c);
-            double dot1 = (p_1 - c_c) * (e->sphere_center - c_c);
-
-            if(dot0 < l_dot && dot1 < l_dot) continue;
-            if(dot0 > dot1)
+            double rot0 = get_rotation(p_0-c_c, vsphcn, n_c);
+            double rot1 = get_rotation(p_1-c_c, vsphcn, n_c);
+            if(!(rot0 < smalestAngle || rot1 < smalestAngle)) continue;
+            if(rot0 < rot1)
             {
+                smalestAngle = rot0;
+                idx_smalest = i;
                 n_sphere_center = p_0;
-                l_dot = dot0;
             }
             else
             {
+                smalestAngle = rot1;
+                idx_smalest = i;
                 n_sphere_center = p_1;
-                l_dot = dot0;
             }
-            idx_smalest = i;
+
         }
 
         if(idx_smalest == -1) return false;
@@ -176,16 +283,6 @@ namespace PBA
             }
         }
         return false;
-    }
-
-    static bool not_used(uint32_t *usedIndex, int s)
-    {
-        return ((usedIndex[s / 32] >> (s % 32)) & 1) == 0;
-    }
-    
-    static void mark_as_used(uint32_t *usedIndex, int s)
-    {
-        usedIndex[s / 32] |= (1 << (s % 32));
     }
 
     static bool on_front(Front& F, int s)
@@ -224,7 +321,7 @@ namespace PBA
     
     static void mark_as_boundary(Edge* e) { e->state = BOUNDARY; }
     
-    static std::vector<int> find2pNeighbourhood(const VertList& verts, uint32_t* usedIndex, int pos, double p)
+    static std::vector<int> find2pNeighbourhoodUnused(const VertList& verts, Mesh& mesh, int pos, double p)
     {
         std::vector<int> neighbourhood;
         double p2 = 2.0*p;
@@ -232,7 +329,7 @@ namespace PBA
         for(size_t i = 0; i < verts.size(); ++i)
         {
             double dist = verts[i].position.dist(spos);
-            if(dist <= p2 && dist > 0 && not_used(usedIndex, i))
+            if(dist <= p2 && dist > 0 && !mesh.vertex_used[i])
             {
                 neighbourhood.push_back(i);
             }
@@ -240,7 +337,9 @@ namespace PBA
         return neighbourhood;
     }
 
-    static bool find_seed_triangle(const VertList& verts, const double p, uint32_t* usedIndex, int& s0, int& s1, int& s2, MLib::Vec3& sphere_center) 
+
+
+    static bool find_seed_triangle(const VertList& verts, const double p, Mesh& mesh, int& s0, int& s1, int& s2, MLib::Vec3& sphere_center) 
     {
         //Spacial query needed
 
@@ -248,9 +347,9 @@ namespace PBA
 
         for(size_t i = 0; i < verts.size(); ++i)
         {
-            if(!not_used(usedIndex, i)) continue;
+            if(mesh.vertex_used[i]) continue;
 
-            p2Neighbourhood = find2pNeighbourhood(verts, usedIndex, i, p);
+            p2Neighbourhood = find2pNeighbourhoodUnused(verts, mesh, i, p);
 
             if(p2Neighbourhood.size() < 2) continue;
 
@@ -264,12 +363,12 @@ namespace PBA
                     const Geometry::Vertex& v1 = verts[p2Neighbourhood[m]];
                     const Geometry::Vertex& v2 = verts[p2Neighbourhood[n]];
 
-                    if(IsSeedTriangle(v0, v1, v2, sphere_center, p))
+                    if(IsSeedTriangle(v0, v1, v2, sphere_center, p, verts))
                     {
                         s0 = i;
                         s1 = p2Neighbourhood[m];
                         s2 = p2Neighbourhood[n];
-                        return true;
+                            return true;
                     }
                 }
             }
@@ -294,17 +393,17 @@ namespace PBA
         F.push_back(e);
     }
 
-    static void output_triangle(int s0, int s1, int s2, Mesh& m, uint32_t* usedIndex) 
+    static void output_triangle(int s0, int s1, int s2, Mesh& m) 
     {
-        mark_as_used(usedIndex, s0);
-        mark_as_used(usedIndex, s1);
-        mark_as_used(usedIndex, s2);
+        m.vertex_used[s0] = true;
+        m.vertex_used[s1] = true;
+        m.vertex_used[s2] = true;
 
         //Write that to the model
-        
-        m.emplace_back(Geometry::Triangle{s0, s1, s2});
 
-        std::cout << "[Log]: Found triangle ( " << s0 << ", " << s1 << "," << s2 << " )\n";
+        m.m_triangles.emplace_back(Geometry::Triangle{s0, s1, s2, m.m_triangles.size() < 10});
+
+        std::cout << "[Log]: Found triangle ( " << s0 << ", " << s1 << ", " << s2 << " )\n";
     }
 
 
@@ -314,30 +413,25 @@ namespace PBA
      * @param model point cloud data set
      * @param p size of the p-ball
      */
-    static OBJ::Model PivotBall(const VertList& point_data, double p)
+    static Mesh PivotBall(const VertList& point_data, double p)
     {
-
-        size_t verts = point_data.size();
-        size_t buckets = verts/32;
-        if(buckets == 0) buckets = 1;
-        uint32_t *usedIndex = (uint32_t*)malloc((buckets)*sizeof(uint32_t));
-        for(size_t i = 0; i < buckets; ++i) usedIndex[i] = 0;
 
         Front F;
         Mesh m;
+        m.vertex_used.resize(point_data.size());
 
         bool found_seed = true;
         
 
-        while(true && found_seed)
+        while(found_seed)
         {
             found_seed = false;
             MLib::Vec3 sphere_center;
             {
                 int s_i = -1, s_j = -1, s_k = -1;
-                if(find_seed_triangle(point_data, p, usedIndex, s_i, s_j, s_k, sphere_center))
+                if(find_seed_triangle(point_data, p, m, s_i, s_j, s_k, sphere_center))
                 {
-                    output_triangle(s_i, s_j, s_k, m, usedIndex);
+                    output_triangle(s_i, s_j, s_k, m);
                     Edge e_ij{s_i, s_j, s_k, ACTIVE, sphere_center};
                     Edge e_jk{s_j, s_k, s_i, ACTIVE, sphere_center};
                     Edge e_ki{s_k, s_i, s_j, ACTIVE, sphere_center};
@@ -355,9 +449,9 @@ namespace PBA
                 int s_k = -1; // index of vertex s_k in point cloud data
                 int s_i = e_ij->start;
                 int s_j = e_ij->end;
-                if(ball_pivote(point_data, e_ij, s_k, sphere_center, p) && (not_used(usedIndex, s_k) || on_front(F, s_k)))
+                if(ball_pivote(point_data, e_ij, s_k, sphere_center, p) && (!m.vertex_used[s_k] || on_front(F, s_k)))
                 {
-                    output_triangle(s_i, s_k, s_j, m, usedIndex);
+                    output_triangle(s_i, s_k, s_j, m);
                     join(e_ij, s_k, F, sphere_center);
                     Edge e_ki{s_k, s_i, s_j, ACTIVE, sphere_center};
                     Edge e_jk{s_j, s_k, s_i, ACTIVE, sphere_center};
@@ -374,9 +468,7 @@ namespace PBA
             
         }
 
-        free(usedIndex);
-
-        return {};
+        return m;
     }
 
 

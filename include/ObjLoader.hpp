@@ -6,9 +6,13 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <algorithm>
 #include <Geometry.hpp>
+#include <tuple>
+#include <map>
 
 #include <MLib.hpp>
+#include <PBA.hpp>
 
 namespace OBJ
 {
@@ -123,6 +127,38 @@ namespace OBJ
             }
         }
         return verts;
+    }
+
+    static void SaveObject(const std::string& filename, PBA::Mesh& mesh, PBA::VertList& vlist)
+    {
+        std::ofstream file(filename);
+
+        if (!file.is_open()) {
+            //throw std::runtime_error("Failed to open file: " + filename);
+            std::cerr << "Failed to open file: " << filename << "\n";
+            return;
+        }
+
+        for(size_t i = 0; i < vlist.size(); ++i)
+        {
+            file << "v " << vlist[i].position.x << " " << vlist[i].position.y << " " << vlist[i].position.z << "\n";
+        }
+        for(size_t i = 0; i < vlist.size(); ++i)
+        {
+            file << "vn " << vlist[i].normal.x << " " << vlist[i].normal.y << " " << vlist[i].position.z << "\n";
+        }
+
+        for(auto it = mesh.m_triangles.begin(); it != mesh.m_triangles.end(); ++it)
+        {
+            //if(!it->can_export) continue;
+            file << "f " 
+            << (it->v1_idx + 1) << "//" << (it->v1_idx + 1) << " " 
+            << (it->v2_idx + 1) << "//" << (it->v2_idx + 1) << " " 
+            << (it->v3_idx + 1) << "//" << (it->v3_idx + 1) << "\n";
+        }
+
+        file.close();
+
     }
 
 }
