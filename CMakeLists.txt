@@ -1,13 +1,21 @@
 #PROJECT WAS CREATED WITH PYMAKE
 #PYMAKE: https://github.com/EndMy5uffering/PyCmakeToolKit
 #THIS FILE CAN BE CHANGED TO FIT YOUR PROJECT. THIS IS ONLY A TEMPLATE FOR A QUICK SETUP.
-cmake_minimum_required (VERSION 3.5)
-project(BPA VERSION 0.0.1 LANGUAGES CXX)
+cmake_minimum_required (VERSION 3.8)
+project(BPA VERSION 0.0.1 LANGUAGES CXX CUDA)
 
 #find_package(PACKAGE_NAME REQUIRED)
 
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
+
+
 #set(SOME_LIB_HEADERS "" CACHE PATH "Path to lib" )
 #set(SOME_LIB_FILE "" CACHE FILEPATH "*.a or *.lib files" )
+
+set(GLM_INCLUDE_PATH "" CACHE PATH "The directory that contains glm/glm.hpp" )
+
 
 set(OTHER_HEADER_FILES
 	# put all .h here.
@@ -24,6 +32,7 @@ include("${CMAKE_SOURCE_DIR}/src/local.cmake")
 include_directories(
 	"${CMAKE_SOURCE_DIR}/include/"
 	#${SOME_LIB_HEADERS}
+	${GLM_INCLUDE_PATH}
 )
 
 set(EXECUTABLE_BUILD ON CACHE BOOL "Build an executable")
@@ -62,6 +71,13 @@ endif(LIBRARY_MODULE_BUILD)
 target_link_libraries("${CMAKE_PROJECT_NAME}"
 	#${SOME_LIB_FILE} 
 )
+
+target_compile_features(${CMAKE_PROJECT_NAME} PRIVATE cxx_std_17)
+
+#set_target_properties("${CMAKE_PROJECT_NAME}" PROPERTIES
+#    CUDA_SEPARABLE_COMPILATION ON
+#    CUDA_ARCHITECTURES "60;70;75;80"
+#)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 	message("Building on Mac!")

@@ -4,12 +4,15 @@
 
 #include <chrono>
 
-#include <Octree.hpp>
-#include <ObjLoader.hpp>
-
 #include <list>
 
 #include<PBA.hpp>
+
+#include <glm.hpp>
+#include <ObjLoader.hpp>
+
+// Declare the kernel launcher defined in kernel.cu
+//extern "C" void launchKernel();
 
 #define MEASURE_EXECUTION_TIME(code_block, time_pre_text)                   \
     {                                                                       \
@@ -30,32 +33,34 @@ void OBJLoaderTest()
 
     PBA::VertList vlist = OBJ::ModelToVertexList(data);
 
-    PBA::Mesh m{std::move(PBA::PivotBall(vlist, 0.02))};
+    Geometry::Mesh m{std::move(PBA::PivotBall(vlist, 0.025f))};
     
     std::cout << "Done meshing\n"; 
     std::cout << "Saving file\n"; 
 
-    OBJ::SaveObject("D:\\Bibliotheken\\Desktop\\MeshingOutput\\BunnyOutput.obj", m, vlist);
+    OBJ::SaveObject("D:\\Bibliotheken\\Desktop\\MeshingOutput\\BunnyOut.obj", m, vlist);
     std::cout << "Done done\n"; 
 
 }
 
 void test2()
 {
-    MLib::Vec3 A{1,1,0};
-    MLib::Vec3 B{-2,2,1};
-    MLib::Vec3 C{-1,-1,0};
-    MLib::Vec3 D{1,-2,-1};
-    MLib::Vec3 n1{0.24, -0.24, 0.94};
-    MLib::Vec3 n2{0.3, -0.3, 0.9};
+    glm::vec3 A{1,1,0};
+    glm::vec3 B{-2,2,1};
+    glm::vec3 C{-1,-1,0};
+    glm::vec3 D{1,-2,-1};
+    glm::vec3 n1{0.24, -0.24, 0.94};
+    glm::vec3 n2{0.3, -0.3, 0.9};
+
+    glm::vec2 uv{0,0};
 
     PBA::VertList list;
-    list.emplace_back(A, n1, MLib::Vec2{0,0});
-    list.emplace_back(B, n1, MLib::Vec2{0,0});
-    list.emplace_back(C, n1, MLib::Vec2{0,0});
-    list.emplace_back(D, n2, MLib::Vec2{0,0});
+    list.push_back({A, n1, uv, false});
+    list.push_back({B, n1, uv, false});
+    list.push_back({C, n1, uv, false});
+    list.push_back({D, n2, uv, false});
 
-    PBA::Mesh m{std::move(PBA::PivotBall(list, 3.0))};
+    Geometry::Mesh m{std::move(PBA::PivotBall(list, 3.0))};
     std::cout << "Done meshing\n"; 
 
     OBJ::SaveObject("D:\\Bibliotheken\\Desktop\\MeshingOutput\\OBJOUTPUT_TestFunc.obj", m, list);
@@ -71,7 +76,8 @@ int main(void)
 
     //test2();
 
-
-    std::cout << "Done...\n"; 
+    //std::cout << "Launching CUDA Kernel..." << std::endl;
+    //launchKernel();
+    //std::cout << "Done...\n"; 
 }
 

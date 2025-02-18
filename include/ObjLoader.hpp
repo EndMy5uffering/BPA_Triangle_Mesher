@@ -7,11 +7,10 @@
 #include <string>
 #include <vector>
 #include <algorithm>
-#include <Geometry.hpp>
 #include <tuple>
 #include <map>
-
-#include <MLib.hpp>
+#include <glm.hpp>
+#include <Geometry.hpp>
 #include <PBA.hpp>
 
 namespace OBJ
@@ -34,9 +33,9 @@ namespace OBJ
     };
 
     struct Model {
-        std::vector<MLib::Vec3> vertices;
-        std::vector<MLib::Vec2> textures;
-        std::vector<MLib::Vec3> normals;
+        std::vector<glm::vec3> vertices;
+        std::vector<glm::vec2> textures;
+        std::vector<glm::vec3> normals;
         std::vector<Face> faces;
     };
 
@@ -57,15 +56,15 @@ namespace OBJ
             lineStream >> prefix;
 
             if (prefix == "v") {  // Vertex line
-                MLib::Vec3 vertex;
+                glm::vec3 vertex;
                 lineStream >> vertex.x >> vertex.y >> vertex.z;
                 model.vertices.push_back(vertex);
             } else if (prefix == "vt") {  // Texture coordinate line
-                MLib::Vec2 texture;
+                glm::vec2 texture;
                 lineStream >> texture.x >> texture.y;
                 model.textures.push_back(texture);
             } else if (prefix == "vn") {  // Normal line
-                MLib::Vec3 normal;
+                glm::vec3 normal;
                 lineStream >> normal.x >> normal.y >> normal.z;
                 model.normals.push_back(normal);
             } else if (prefix == "f") {  // Face line
@@ -112,24 +111,24 @@ namespace OBJ
     inline std::vector<Geometry::Vertex> ModelToVertexList(Model& mesh)
     {
         std::vector<Geometry::Vertex> verts;
-        verts.resize(mesh.vertices.size(), {{0.0, 0.0, 0.0}, {0.0, 0.0, 0.0}, {0.0, 0.0}});
+        verts.resize(mesh.vertices.size());
 
         for(Face& f : mesh.faces)
         {
             for(int i = 0; i < 3; ++i)
             {
-                MLib::Vec3 v = mesh.vertices[f.vertexIndices[i]];
-                MLib::Vec3 n = mesh.normals[f.normalIndices[i]];
+                glm::vec3 v = mesh.vertices[f.vertexIndices[i]];
+                glm::vec3 n = mesh.normals[f.normalIndices[i]];
                 
                 verts[f.vertexIndices[i]].position = v;
-                verts[f.vertexIndices[i]].normal = ((verts[f.vertexIndices[i]].normal + n) * 0.5).norm();
+                verts[f.vertexIndices[i]].normal = glm::normalize((0.5f * (verts[f.vertexIndices[i]].normal + n)));
 
             }
         }
         return verts;
     }
 
-    static void SaveObject(const std::string& filename, PBA::Mesh& mesh, PBA::VertList& vlist)
+    static void SaveObject(const std::string& filename, Geometry::Mesh& mesh, PBA::VertList& vlist)
     {
         std::ofstream file(filename);
 
@@ -148,13 +147,15 @@ namespace OBJ
             file << "vn " << vlist[i].normal.x << " " << vlist[i].normal.y << " " << vlist[i].position.z << "\n";
         }
 
+        Geometry::Vertex* start = &vlist[0];
+
         for(auto it = mesh.m_triangles.begin(); it != mesh.m_triangles.end(); ++it)
         {
             //if(!it->can_export) continue;
             file << "f " 
-            << (it->v1_idx + 1) << "//" << (it->v1_idx + 1) << " " 
-            << (it->v2_idx + 1) << "//" << (it->v2_idx + 1) << " " 
-            << (it->v3_idx + 1) << "//" << (it->v3_idx + 1) << "\n";
+            << ((it->at(0) - start) + 1) << "//" << ((it->at(0) - start) + 1) << " " 
+            << ((it->at(1) - start) + 1) << "//" << ((it->at(1) - start) + 1) << " " 
+            << ((it->at(2) - start) + 1) << "//" << ((it->at(2) - start) + 1) << "\n";
         }
 
         file.close();

@@ -2,408 +2,226 @@
 #define PBA_HPP
 
 #include <Collider.hpp>
-#include <Geometry.hpp>
-#include <MLib.hpp>
 #include <vector>
 #include <iostream>
 #include <cmath>
+#include <algorithm>
+#include <numeric>
 
 #include <list>
 #include <array>
 #include <bitset>
+#include <optional>
+
+#include <glm.hpp>
+#include <Grid.hpp>
 
 //#define ASSERT(x) { if (!(x)) __debugbreak(); }
 #define ASSERT(x, m) { if (!(x)) {std::cout << "[DEBUG_ASSERT]: " << m << "\n"; __debugbreak();} }
 #define LOG(m) {std::cout << "[DEBUG_LOG (" << __LINE__ << " | " << __FILE__ <<")]: " << m << "\n";}
 
-# define M_PI   3.14159265358979323846  /* pi */
+//https://github.com/bernhardmgruber/bpa/blob/master/src/lib/bpa.cpp#L104
+//https://gamedev.stackexchange.com/questions/60630/how-do-i-find-the-circumcenter-of-a-triangle-in-3d
+
 
 namespace PBA
 {
 
-
-    enum EdgeState
-    {
-        ACTIVE,
-        BOUNDARY,
-        FROZEN
-    };
-
-    struct Edge
-    {
-        int start;
-        int end;
-        int across;
-        EdgeState state;
-        MLib::Vec3 sphere_center;
-
-        Edge(int _start, int _end, int _across, EdgeState _state, MLib::Vec3 _sphere_center)
-        :
-        start{_start},
-        end{_end},
-        across{_across},
-        state{_state},
-        sphere_center{_sphere_center}
-        {
-
-        }
-
-        bool operator==(const Edge& other) const
-        {
-            return (start == other.start) &&
-                (end == other.end);
-        }
-    };
-
-    typedef std::list<Edge> Front;
-    struct Mesh{
-        std::list<Geometry::Triangle> m_triangles;
-        std::vector<bool> vertex_used;
-
-        Mesh(){}
-
-        Mesh(Mesh& m) 
-        : 
-        m_triangles{m.m_triangles}, 
-        vertex_used{m.vertex_used}
-        {
-
-        }
-
-        Mesh(Mesh&& m) noexcept
-        : m_triangles(std::move(m.m_triangles)),
-        vertex_used(std::move(m.vertex_used)) 
-        {
-        }
-
-        Mesh& operator=(Mesh& m)
-        {
-            m_triangles = m.m_triangles;
-            vertex_used = m.vertex_used;
-            return *this;
-        }
-
-        Mesh& operator=(Mesh&& m)
-        {
-            std::swap(m_triangles, m.m_triangles);
-            std::swap(vertex_used, m.vertex_used);
-            return *this;
-        }
-    };
-
+    typedef std::list<Geometry::Edge*> Front;
     typedef std::vector<Geometry::Vertex> VertList;
 
-    static std::vector<int> find2pNeighbourhood(const VertList& verts, MLib::Vec3 pos, double p)
+    static bool get_active_edge(Front& F, Geometry::Edge** e) 
     {
-        std::vector<int> neighbourhood;
-        double p2 = 2.0*p;
-        for(size_t i = 0; i < verts.size(); ++i)
+        while(!F.empty())
         {
-            double dist = verts[i].position.dist(pos);
-            if(dist <= p2 && dist > 0)
-            {
-                neighbourhood.push_back(i);
-            }
+            if((*e = F.back())->state == Geometry::ACTIVE)
+                return true;
+            F.pop_back();
         }
-        return neighbourhood;
+        return false;
     }
 
-    static bool IsSeedTriangle(const Geometry::Vertex& a, const Geometry::Vertex& b, const Geometry::Vertex& c, MLib::Vec3& sphere_center, double p, const PBA::VertList& vlist)
+    static bool on_front(Geometry::Vertex* s)
     {
-        std::cout << "##### Testing seed triangle: \n\t< " 
-        << a.position.x << ", " << a.position.y << ", " << a.position.z << " >"
-        << "\n\t< " << b.position.x << ", " << b.position.y << ", " << b.position.z << " >"
-        << "\n\t< " << c.position.x << ", " << c.position.y << ", " << c.position.z << " >\n";
-        double r2 = p * p;
-        MLib::Vec3 p_1 = (a.position + c.position) * 0.5;
-        MLib::Vec3 p_2 = (b.position + c.position) * 0.5;
+        for(const Geometry::Edge* e : s->edges)
+        {
+            if(e->state == Geometry::ACTIVE) return true;
+        }
+        return false;
+    }
 
-        MLib::Vec3 n = MLib::cross((a.position-c.position),(b.position-c.position)).norm();
-
-        if(n.dot(((a.normal + b.normal + c.normal)*(1.0/3.0))) < 0.0) n = n * (-1.0);
-
-        MLib::Vec3 ca = a.position - c.position;
-        MLib::Vec3 cao{-ca.y, ca.x, ca.z};
-        cao = (cao - n*(MLib::dot(cao, n)/MLib::dot(n,n)) - ca*(MLib::dot(cao,ca)/MLib::dot(ca,ca))).norm();
+    static std::tuple<Geometry::Edge*, Geometry::Edge*> join(Geometry::Edge* e_ij, Geometry::Vertex* s_k, Front& F, std::list<Geometry::Edge>& edges, glm::vec3 sphere_center) 
+    {
+        //add edges e_ik, e_kj
+        //remove edge e_ij <- its no longer used as we found a new triangle
+        //e_ij is enclosed in the two triangles and no longer of interest
         
+        auto& e_ik = edges.emplace_back(Geometry::Edge{e_ij->start, s_k, e_ij->end, Geometry::ACTIVE, sphere_center});
+        auto& e_kj = edges.emplace_back(Geometry::Edge{s_k, e_ij->end, e_ij->start, Geometry::ACTIVE, sphere_center});
 
-        MLib::Vec3 cb = b.position - c.position;
-        MLib::Vec3 cbo{-cb.y, cb.x, cb.z};
-        cbo = (cbo - n*(MLib::dot(cbo, n)/MLib::dot(n,n)) - cb*(MLib::dot(cbo,cb)/MLib::dot(cb,cb))).norm();
+        e_ij->start->edges.push_back(&e_ik);
+        e_ij->end->edges.push_back(&e_kj);
 
-        MLib::Vec3 poi;
-        if(!MLib::LineLineIntersection(p_1, cao, p_2, cbo, poi)) return false;
+        s_k->edges.push_back(&e_ik);
+        s_k->edges.push_back(&e_kj);
 
-        double dist = (poi - a.position).length2();
+        F.push_back(&e_ik);
+        F.push_back(&e_kj);
 
-        if(dist > r2) return false;
-
-        double ss = sqrt(r2 - dist);
-
-        sphere_center = poi + n * ss;
-
-        std::vector<int> neighbours = find2pNeighbourhood(vlist, sphere_center, p);
-        std::cout << ">\tHas neighbours ( " << neighbours.size() << " )!\n";
-
-        for(size_t i = 0; i < neighbours.size(); ++i)
+        e_ij->state = Geometry::INNER;
+        return {&e_ik, &e_kj};
+    }
+    
+    static void glue(Geometry::Edge* e0, Geometry::Edge* e1) 
+    {
+        e0->state = Geometry::INNER;
+        e1->state = Geometry::INNER;
+    }
+    
+    static Geometry::Edge* edge_rev_in_front(const Geometry::Edge* e) 
+    {
+        for(Geometry::Edge* i : e->start->edges)
         {
-            const Geometry::Vertex& tocheck = vlist[neighbours[i]];
-            if(tocheck == a || tocheck == b || tocheck == c) continue;
-            double dist = tocheck.position.dist(sphere_center);
-            if(dist < p) 
-            {
-                std::cout << ">\tTo close at sphere center for seed triangle: " << dist << " for sphere with radious " << p <<"\n";
-                return false;
-            }
+            if(i->end == e->start && i->start == e->end) return i;
         }
-        std::cout << "########################\n";
-        std::cout << "###### Is seed triangle!\n";
-        std::cout << "########################\n";
-        return true;
+        return nullptr;
     }
 
-    /**
-     * @brief Returns the Angle between two vectors in the range [0, 2PI]
-     * 
-     * @param v0 First vector
-     * @param v1 Second vector
-     * @param n Normal on the plane the two points are on
-     * @return angle as double between 0 and 2PI
-     */
-    static double get_rotation(MLib::Vec3 v0, MLib::Vec3 v1, MLib::Vec3 n)
+
+    static std::tuple<Geometry::Edge*, Geometry::Edge*, Geometry::Edge*> output_triangle(Geometry::Face face, Geometry::Mesh& m, glm::vec3 sphere_center) 
     {
-        MLib::Vec3 v0n = v0.norm();
-        MLib::Vec3 v1n = v1.norm();
-        MLib::Vec3 nn = n.norm();
-
-        double dotuv = v0n.dot(v1n);
-        double theta = acos(dotuv);
-
-        MLib::Vec3 cross = v0n.cross(v1n);
-        double sign = nn.dot(cross);
-
-        if(sign < 0)
-        {
-            theta = 2.0 * M_PI - theta;
-        }
-        return theta;
+        face[0]->used = true;
+        face[1]->used = true;
+        face[2]->used = true;
+        //Write that to the model
+        m.m_triangles.emplace_back(face);
+        Geometry::Edge& e0 = m.m_edges.emplace_back(Geometry::Edge{face[0], face[1], face[2], Geometry::ACTIVE, sphere_center});
+        Geometry::Edge& e1 = m.m_edges.emplace_back(Geometry::Edge{face[1], face[2], face[0], Geometry::ACTIVE, sphere_center});
+        Geometry::Edge& e2 = m.m_edges.emplace_back(Geometry::Edge{face[2], face[0], face[1], Geometry::ACTIVE, sphere_center});
+        //std::cout << "[Log]: Found triangle ( " << s0 << ", " << s1 << ", " << s2 << " )\n";
+        return {&e0, &e1, &e2};
     }
 
-    static bool ball_pivote(const VertList& point_data, const Edge* e, int& o_s_k, MLib::Vec3& o_sphere_center, double p) 
+    static bool calc_sphere_center(glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 normDir, float rad, glm::vec3* nspherePos)
     {
-        //https://gamedev.stackexchange.com/questions/75756/sphere-sphere-intersection-and-circle-sphere-intersection
+        //https://gamedev.stackexchange.com/questions/60630/how-do-i-find-the-circumcenter-of-a-triangle-in-3d
+        glm::vec3 ac = c - a;
+        glm::vec3 ab = b - a;
+        glm::vec3 abXac = glm::cross(ab, ac);
 
-        MLib::Vec3 c_c = (point_data[e->start].position + point_data[e->end].position)*0.5;
-        double r_c = (e->sphere_center - c_c).length();
+        glm::vec3 toCircumsphereCenter = (glm::cross(abXac, ab) * glm::length2(ac) + glm::cross(ac, abXac) * glm::length2(ab)) / (2.f*glm::length2(abXac));
+        glm::vec3 circumsphereCenter = a + toCircumsphereCenter;
 
-        MLib::Vec3 vsphcn = (e->sphere_center - c_c).norm();
+        float h2 = rad * rad - glm::length2(toCircumsphereCenter);
+        if (h2 < 0) return false;
 
-        MLib::Vec3 n_c = (point_data[e->end].position - point_data[e->start].position).norm();
-
-        MLib::Vec3 norm_at_rot = (point_data[e->start].normal + point_data[e->end].normal) * 0.5;
-        MLib::Vec3 corss_direction_normed = (point_data[e->across].position - (point_data[e->end].position + n_c*((point_data[e->across].position - point_data[e->end].position).dot(n_c)))).norm().cross(norm_at_rot).norm();
-
-        std::vector<size_t> verts; // spacial query to find 2p neighbourhood
-        for(size_t i = 0; i < point_data.size(); ++i)
-        {
-            if((e->sphere_center - point_data[i].position).length() <= 2*p)
-            {
-                verts.push_back(i);
-            }
-        }
-
-        int idx_smalest = -1;
-        MLib::Vec3 n_sphere_center;
-        double smalestAngle = 99999.9999;
-        for(size_t i : verts)
-        {
-            if(i == e->start || i == e->end || i == e->across) continue;
-
-            MLib::Vec3 dir_to_point = point_data[i].position - c_c;
-            double d = n_c * (dir_to_point);
-
-            if(std::abs(d) > p) continue;
-
-            MLib::Vec3 c_p = point_data[i].position + (n_c*d);
-
-            double r_p = sqrt(p*p - d*d);
-            double h = 0.5 + ((r_c * r_c) - (r_p * r_p))/(2.0 * (c_c - c_p).length2());
-            double r_i = sqrt(r_c*r_c - h*h*d*d);
-            MLib::Vec3 c_i = c_c + ((c_p - c_c)*h);
-
-            MLib::Vec3 t = (c_p - c_c).cross(n_c).norm();
-
-            MLib::Vec3 p_0 = c_i - t * r_i;
-            MLib::Vec3 p_1 = c_i + t * r_i;
-
-            double rot0 = get_rotation(p_0-c_c, vsphcn, n_c);
-            double rot1 = get_rotation(p_1-c_c, vsphcn, n_c);
-            if(!(rot0 < smalestAngle || rot1 < smalestAngle)) continue;
-            if(rot0 < rot1)
-            {
-                smalestAngle = rot0;
-                idx_smalest = i;
-                n_sphere_center = p_0;
-            }
-            else
-            {
-                smalestAngle = rot1;
-                idx_smalest = i;
-                n_sphere_center = p_1;
-            }
-
-        }
-
-        if(idx_smalest == -1) return false;
-
-        for(size_t i : verts)
-        {
-            if(i == e->start || i == e->end || i == idx_smalest) continue;
-            double len = (n_sphere_center - point_data[i].position).length();
-            bool sm = len < p;
-            if(sm) return false;
-        }
-
-        o_sphere_center = n_sphere_center;
-        o_s_k = idx_smalest;
-
-        return true;
+        (*nspherePos) = circumsphereCenter + glm::normalize(normDir) * std::sqrt(h2);
+        return true; 
     }
 
-    static bool get_active_edge(Front& F, Edge*& e) 
+    static bool find_seed_triangle(Grid& grid, float radius, glm::vec3* sphere_pos, Geometry::Face* f)
     {
-        if(F.empty()) return false;
-
-        for(Front::iterator it = F.begin(); it != F.end(); ++it)
+        //from
+        //https://github.com/bernhardmgruber/bpa/blob/master/src/lib/bpa.cpp
+        std::cout << "Looking for seed\n";
+        for(auto& cell : grid.getCells())
         {
-            if(it->state == ACTIVE) 
+            const auto avgNormal = glm::normalize(std::accumulate(begin(cell), end(cell), glm::vec3{}, [](glm::vec3 acc, const Geometry::Vertex* p) { return acc + p->normal; }));
+            for (auto& p1 : cell) {
+                if(p1->used) {continue;}
+                auto neighborhood = grid.sphericalNeighborhood(p1->position, {p1->position});
+                std::sort(
+                    begin(neighborhood), end(neighborhood), [&](Geometry::Vertex* a, Geometry::Vertex* b) { return glm::length(a->position - p1->position) < glm::length(b->position - p1->position); });
+
+                for (auto& p2 : neighborhood) {
+                    if(p2->used) {continue;}
+                    for (auto& p3 : neighborhood) {
+                        if(p3->used) {continue;}
+                        if (p2 == p3) continue;
+                            
+                        (*f) = {p1, p2, p3};
+                        if (glm::dot(f->normal(), avgNormal) < 0) continue;
+
+                        if (calc_sphere_center(p1->position, p2->position, p3->position, f->normal(), radius, sphere_pos) && Geometry::ballIsEmpty(*sphere_pos, neighborhood, radius)) {
+                            
+                            std::cout << "Found seed\n";
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        
+        std::cout << "No seed\n";
+        return false;
+    }
+
+    struct PivotResult
+    {
+        Geometry::Vertex* vert;
+        glm::vec3 spherePos;
+        bool valid = false;
+    };
+
+    static bool vertOnInnerEdge(Geometry::Vertex* vert, Geometry::Edge* edge)
+    {
+        for(Geometry::Edge* ee : vert->edges)
+        {
+            Geometry::Vertex* otherPoint = ee->start == vert ? ee->end : ee->start;
+            if(ee->state == Geometry::INNER && (otherPoint == edge->start || otherPoint == edge->end))
             {
-                e = &(*it); // cursed
                 return true;
             }
         }
         return false;
     }
 
-    static bool on_front(Front& F, int s)
+    static PivotResult ball_pivote(Grid& grid, Geometry::Edge* edge, float rad)
     {
-        for(const Edge& e : F)
-        {
-            if(e.start == s || e.end == s) return true;
-        }
-        return false;
-    }
+        Geometry::Vertex* v0 = edge->start;
+        Geometry::Vertex* v1 = edge->end;
+        glm::vec3 middle = (v0->position + v1->position) / 2.0f;
+        std::vector<Geometry::Vertex*> neighbourhood = grid.sphericalNeighborhood(middle, {v0->position, v1->position, edge->across->position});
 
-    static void join(Edge* e_ij, int s_k, Front& F, MLib::Vec3 sphere_center) 
-    {
-        //add edges e_ik, e_kj
-        //remove edge e_ij <- its no longer used as we found a new triangle
-        //e_ij is enclosed in the two triangles and no longer of interest
-        
-        Edge e_ik{e_ij->start, s_k, e_ij->end, ACTIVE, sphere_center};
-        Edge e_kj{s_k, e_ij->end, e_ij->start, ACTIVE, sphere_center};
-        ASSERT(s_k >= 0, "s_k was not > 0")
-        ASSERT(e_ik.start >= 0, "e_ik.start was not > 0")
-        ASSERT(e_ik.end >= 0, "e_ik.end was not > 0")
-        ASSERT(e_kj.start >= 0, "e_kj.start was not > 0")
-        ASSERT(e_kj.end >= 0, "e_kj.start was not > 0")
-        F.push_back(e_ik);
-        F.push_back(e_kj);
-        F.remove(*e_ij);
-    }
-    
-    static void glue(Edge& e, Front& F) 
-    {
-        Edge reverse{e.end, e.start, e.across, e.state, e.sphere_center};
-        F.remove(e);
-        F.remove(reverse);
-    }
-    
-    static void mark_as_boundary(Edge* e) { e->state = BOUNDARY; }
-    
-    static std::vector<int> find2pNeighbourhoodUnused(const VertList& verts, Mesh& mesh, int pos, double p)
-    {
-        std::vector<int> neighbourhood;
-        double p2 = 2.0*p;
-        MLib::Vec3 spos = verts[pos].position;
-        for(size_t i = 0; i < verts.size(); ++i)
+        glm::vec3 n_midSphere = glm::normalize(edge->sphere_center - middle);
+
+        float smallest_angle = std::numeric_limits<float>::max();
+        PivotResult result;
+        for(Geometry::Vertex* vert : neighbourhood)
         {
-            double dist = verts[i].position.dist(spos);
-            if(dist <= p2 && dist > 0 && !mesh.vertex_used[i])
+            glm::vec3 fnorm = Geometry::Face{v1, v0, vert}.normal();
+
+            if(glm::dot(fnorm, vert->normal) < 0) continue;
+
+            glm::vec3 cc{0,0,0};
+            if(!calc_sphere_center(v0->position, v1->position, vert->position, fnorm, rad, &cc))
+                continue;
+            
+            glm::vec3 midNewCenter = glm::normalize(cc - middle);
+            if(glm::dot(midNewCenter, fnorm) < 0) continue;
+
+            if(vertOnInnerEdge(vert, edge)) continue;
+
+            float angle = std::acos(std::clamp(glm::dot(n_midSphere, midNewCenter), -1.0f, 1.0f));
+            if (glm::dot(glm::cross(midNewCenter, n_midSphere), edge->start->position - edge->end->position) < 0)
+                angle += 3.14159274101257324219f;
+            
+            if(angle < smallest_angle)
             {
-                neighbourhood.push_back(i);
+                smallest_angle = angle;
+                result.vert = vert;
+                result.spherePos = cc;
             }
+            
         }
-        return neighbourhood;
-    }
 
-
-
-    static bool find_seed_triangle(const VertList& verts, const double p, Mesh& mesh, int& s0, int& s1, int& s2, MLib::Vec3& sphere_center) 
-    {
-        //Spacial query needed
-
-        std::vector<int> p2Neighbourhood;
-
-        for(size_t i = 0; i < verts.size(); ++i)
+        if(smallest_angle != std::numeric_limits<float>::max() && 
+            Geometry::ballIsEmpty(result.spherePos, neighbourhood, rad))
         {
-            if(mesh.vertex_used[i]) continue;
-
-            p2Neighbourhood = find2pNeighbourhoodUnused(verts, mesh, i, p);
-
-            if(p2Neighbourhood.size() < 2) continue;
-
-            for(int m = 0; m < p2Neighbourhood.size(); ++m)
-            {
-                for(int n = 0; n < p2Neighbourhood.size(); ++n)
-                {
-                    if(n == m) continue;
-
-                    const Geometry::Vertex& v0 = verts[i];
-                    const Geometry::Vertex& v1 = verts[p2Neighbourhood[m]];
-                    const Geometry::Vertex& v2 = verts[p2Neighbourhood[n]];
-
-                    if(IsSeedTriangle(v0, v1, v2, sphere_center, p, verts))
-                    {
-                        s0 = i;
-                        s1 = p2Neighbourhood[m];
-                        s2 = p2Neighbourhood[n];
-                            return true;
-                    }
-                }
-            }
+            result.valid = true;    
         }
 
-        return false;
-    }
-
-    static bool edge_in_front(const Edge& e, Front& F) 
-    {
-        for(const Edge& i : F)
-        {
-            if(i == e) return true;
-        }
-        return false;
-    }
-
-
-    static void insert_edge(Edge& e, Front& F) 
-    {
-        e.state = ACTIVE;
-        F.push_back(e);
-    }
-
-    static void output_triangle(int s0, int s1, int s2, Mesh& m) 
-    {
-        m.vertex_used[s0] = true;
-        m.vertex_used[s1] = true;
-        m.vertex_used[s2] = true;
-
-        //Write that to the model
-
-        m.m_triangles.emplace_back(Geometry::Triangle{s0, s1, s2, m.m_triangles.size() < 10});
-
-        std::cout << "[Log]: Found triangle ( " << s0 << ", " << s1 << ", " << s2 << " )\n";
+        return result;
     }
 
 
@@ -413,55 +231,53 @@ namespace PBA
      * @param model point cloud data set
      * @param p size of the p-ball
      */
-    static Mesh PivotBall(const VertList& point_data, double p)
+    static Geometry::Mesh PivotBall(VertList& point_data, float p)
     {
 
+        Grid grid{point_data, p};
+
         Front F;
-        Mesh m;
-        m.vertex_used.resize(point_data.size());
+        Geometry::Mesh m;
 
         bool found_seed = true;
-        
 
         while(found_seed)
         {
             found_seed = false;
-            MLib::Vec3 sphere_center;
+            glm::vec3 sphere_center;
             {
-                int s_i = -1, s_j = -1, s_k = -1;
-                if(find_seed_triangle(point_data, p, m, s_i, s_j, s_k, sphere_center))
+                Geometry::Face face;
+                if(find_seed_triangle(grid, p, &sphere_center, &face))
                 {
-                    output_triangle(s_i, s_j, s_k, m);
-                    Edge e_ij{s_i, s_j, s_k, ACTIVE, sphere_center};
-                    Edge e_jk{s_j, s_k, s_i, ACTIVE, sphere_center};
-                    Edge e_ki{s_k, s_i, s_j, ACTIVE, sphere_center};
-                    insert_edge(e_ij, F);
-                    insert_edge(e_jk, F);
-                    insert_edge(e_ki, F);
+                    auto [e0, e1, e2] = output_triangle(face, m, sphere_center);
+                    F.push_back(e0);
+                    F.push_back(e1);
+                    F.push_back(e2);
                     found_seed = true;
                 }
             }
 
-            Edge* e_ij = nullptr;
-            while(get_active_edge(F, e_ij))
+            Geometry::Edge* e_ij = nullptr;
+            while(get_active_edge(F, &e_ij))
             {
-                ASSERT(e_ij != nullptr, "e_ij as null")
-                int s_k = -1; // index of vertex s_k in point cloud data
-                int s_i = e_ij->start;
-                int s_j = e_ij->end;
-                if(ball_pivote(point_data, e_ij, s_k, sphere_center, p) && (!m.vertex_used[s_k] || on_front(F, s_k)))
+                ASSERT(e_ij != nullptr, "e_ij was null")
+                Geometry::Vertex* s_i = e_ij->start;
+                Geometry::Vertex* s_j = e_ij->end;
+                PivotResult pvRes = ball_pivote(grid, e_ij, p);
+                ASSERT(pvRes.vert != nullptr, "pvRes was null")
+                if(pvRes.valid && (!pvRes.vert->used || on_front(pvRes.vert)))
                 {
-                    output_triangle(s_i, s_k, s_j, m);
-                    join(e_ij, s_k, F, sphere_center);
-                    Edge e_ki{s_k, s_i, s_j, ACTIVE, sphere_center};
-                    Edge e_jk{s_j, s_k, s_i, ACTIVE, sphere_center};
-                    if(edge_in_front(e_ki, F)) glue(e_ki, F);
-                    if(edge_in_front(e_jk, F)) glue(e_jk, F);
+                    Geometry::Vertex* s_k = pvRes.vert;
+                    output_triangle({s_i, s_k, s_j}, m, pvRes.spherePos);
+                    auto [e_ik, e_kj] = join(e_ij, s_k, F, m.m_edges, pvRes.spherePos);
+                    if(auto e_ki = edge_rev_in_front(e_ik)) { glue(e_ik, e_ki); }
+                    if(auto e_jk = edge_rev_in_front(e_kj)) { glue(e_kj, e_jk); }
+                    std::cout << "Found Triangles: " << m.m_triangles.size() << "\n";
                 }
                 else
                 {
-                    //mark_as_boundary(e_ij);
-                    e_ij->state = BOUNDARY;
+                    e_ij->state = Geometry::BOUNDARY;
+                    std::cout << "Found Boundary\n";
                 }
             }
 

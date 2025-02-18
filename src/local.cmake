@@ -8,8 +8,6 @@ set(
 	./src/Geometry.cpp
 	./src/Grid.cpp
 	./src/Main.cpp
-	./src/MLib.cpp
 	./src/ObjLoader.cpp
-	./src/Octree.cpp
 	./src/PBA.cpp
 )

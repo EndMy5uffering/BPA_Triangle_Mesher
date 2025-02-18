@@ -1,8 +1,9 @@
 #ifndef BOX_HPP
 #define BOX_HPP
 
-#include "MLib.hpp"
+#include <glm.hpp>
 #include <algorithm>
+#include "gtx/norm.hpp"
 
 namespace Collider
 {
@@ -11,16 +12,16 @@ namespace Collider
     struct Sphere;
 
     struct AABB{
-        MLib::Vec3 position;
-        MLib::Vec3 size;
+        glm::vec3 position;
+        glm::vec3 size;
 
-        MLib::Vec3 min() const { return position - (size/2.0f); }
-        MLib::Vec3 max() const { return position + (size/2.0f); }
+        glm::vec3 min() const { return position - (size/2.0f); }
+        glm::vec3 max() const { return position + (size/2.0f); }
 
-        bool operator<(MLib::Vec3& v) const;
-        bool operator<=(MLib::Vec3& v) const;
-        bool operator>(MLib::Vec3& v) const;
-        bool operator>=(MLib::Vec3& v) const;
+        bool operator<(glm::vec3& v) const;
+        bool operator<=(glm::vec3& v) const;
+        bool operator>(glm::vec3& v) const;
+        bool operator>=(glm::vec3& v) const;
         
         bool operator&(const AABB& v) const;
 
@@ -28,13 +29,13 @@ namespace Collider
     };
 
     struct Sphere{
-        MLib::Vec3 position;
+        glm::vec3 position;
         double radius;
 
-        bool operator<(MLib::Vec3& v) const;
-        bool operator<=(MLib::Vec3& v) const;
-        bool operator>(MLib::Vec3& v) const;
-        bool operator>=(MLib::Vec3& v) const;
+        bool operator<(glm::vec3& v) const;
+        bool operator<=(glm::vec3& v) const;
+        bool operator>(glm::vec3& v) const;
+        bool operator>=(glm::vec3& v) const;
 
         bool operator&(const AABB& v) const;
 

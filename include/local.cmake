@@ -7,8 +7,6 @@ set(
 	./include/Collider.hpp
 	./include/Geometry.hpp
 	./include/Grid.hpp
-	./include/MLib.hpp
 	./include/ObjLoader.hpp
-	./include/Octree.hpp
 	./include/PBA.hpp
 )
