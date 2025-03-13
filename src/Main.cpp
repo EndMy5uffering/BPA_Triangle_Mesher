@@ -2,11 +2,14 @@
 //PYMAKE: https://github.com/EndMy5uffering/PyCmakeToolKit
 //THIS FILE CAN BE CHANGED TO FIT YOUR PROJECT. THIS IS ONLY A TEMPLATE FOR A QUICK SETUP.
 
+#define DEBUG
+
 #include <chrono>
 
 #include <list>
 
 #include<PBA.hpp>
+#include <PBAMT.hpp>
 
 #include <glm.hpp>
 #include <ObjLoader.hpp>
@@ -66,13 +69,37 @@ void test2()
     OBJ::SaveObject("D:\\Bibliotheken\\Desktop\\MeshingOutput\\OBJOUTPUT_TestFunc.obj", m, list);
 }
 
+void threadedTest()
+{
+    OBJ::Model data;
+
+    MEASURE_EXECUTION_TIME({data = OBJ::parse("D:\\Bibliotheken\\Desktop\\MeshingOutput\\Input\\Bunny.obj");}, "OBJ Loading Time: ")
+
+    auto [minPoint, maxPoint, dimensions] = OBJ::computeMinMaxDim(data);
+
+    MEASURE_EXECUTION_TIME({OBJ::ModelToVertexList(data);}, "Time to tranform mesh to vert list: ");
+
+    PBA::VertList vlist = OBJ::ModelToVertexList(data);
+
+    float len = glm::max(dimensions.x, glm::max(dimensions.y, dimensions.z)) / 30.0f;
+    Geometry::Mesh m{std::move(PBAMT::PivotBall(vlist, len, len * 0.8f, 6))};
+    
+    std::cout << "Done meshing\n"; 
+    std::cout << "Saving file\n"; 
+
+    OBJ::SaveObject("D:\\Bibliotheken\\Desktop\\MeshingOutput\\BunnyOut.obj", m, vlist);
+    
+    std::cout << "File Written to: D:\\Bibliotheken\\Desktop\\MeshingOutput\\BunnyOut.obj\n"; 
+    std::cout << "Done done\n";
+}
+
 int main(void) 
 {
     //std::ofstream out("LOG.txt");
     //std::streambuf *coutbuf = std::cout.rdbuf(); //save old buf
     //std::cout.rdbuf(out.rdbuf()); //redirect std::cout to out.txt!
 
-    OBJLoaderTest();
+    threadedTest();
 
     //test2();
 

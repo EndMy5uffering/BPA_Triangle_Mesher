@@ -7,6 +7,8 @@
 #include <vector>
 #include <list>
 #include <algorithm>
+#include <mutex>
+#include <BugTools.hpp>
 
 namespace Geometry
 {
@@ -68,6 +70,51 @@ namespace Geometry
         std::list<Face> m_triangles;
         std::list<Edge> m_edges;
         std::list<Vertex> m_verts;
+        std::mutex m_mutex;
+
+        Mesh() = default;
+        
+        Mesh(const Mesh& other) {
+            m_triangles = other.m_triangles;
+            m_edges = other.m_edges;
+            m_verts = other.m_verts;
+        }
+
+        void addFace(const Face& face) {
+            LOG("addFace from " << std::this_thread::get_id());
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_triangles.push_back(face);
+        }
+
+        void addEdge(const Edge& edge) {
+            LOG("addEdge from " << std::this_thread::get_id());
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_edges.push_back(edge);
+        }
+
+        void addVertex(const Vertex& vertex) {
+            LOG("addVertex from " << std::this_thread::get_id());
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_verts.push_back(vertex);
+        }
+
+        std::list<Face> getFaces() {
+            LOG("getFaces from " << std::this_thread::get_id());
+            std::lock_guard<std::mutex> lock(m_mutex);
+            return m_triangles;
+        }
+
+        std::list<Edge> getEdges() {
+            LOG("getEdges from " << std::this_thread::get_id());
+            std::lock_guard<std::mutex> lock(m_mutex);
+            return m_edges;
+        }
+
+        std::list<Vertex> getVertices() {
+            LOG("getVertices from " << std::this_thread::get_id());
+            std::lock_guard<std::mutex> lock(m_mutex);
+            return m_verts;
+        }
     };
 
     static bool ballIsEmpty(glm::vec3 ball, const std::vector<Vertex*> points, float radius) {

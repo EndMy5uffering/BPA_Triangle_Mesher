@@ -6,6 +6,10 @@ project(BPA VERSION 0.0.1 LANGUAGES CXX CUDA)
 
 #find_package(PACKAGE_NAME REQUIRED)
 
+set(CMAKE_CXX_STANDARD 20)    # Use C++20
+set(CMAKE_CXX_STANDARD_REQUIRED ON)  # Ensure C++20 is required
+set(CMAKE_CXX_EXTENSIONS OFF)  # Use only standard C++, not compiler-specific extensions
+
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 

@@ -67,6 +67,15 @@
         "functional": "cpp",
         "unordered_map": "cpp",
         "xhash": "cpp",
-        "numbers": "cpp"
+        "numbers": "cpp",
+        "condition_variable": "cpp",
+        "deque": "cpp",
+        "mutex": "cpp",
+        "numeric": "cpp",
+        "queue": "cpp",
+        "ranges": "cpp",
+        "span": "cpp",
+        "stop_token": "cpp",
+        "thread": "cpp"
     }
 }

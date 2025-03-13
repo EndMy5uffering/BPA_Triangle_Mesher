@@ -4,10 +4,11 @@
 #CHANGES TO THIS FILE WILL NOT CARRY OVER
 set(
 	SOURCE_FILES_SRC_FOLDER
-	./src/Collider.cpp
 	./src/Geometry.cpp
 	./src/Grid.cpp
 	./src/Main.cpp
 	./src/ObjLoader.cpp
 	./src/PBA.cpp
+	./src/PBAMT.cpp
+	./src/ThreadPool.cpp
 )

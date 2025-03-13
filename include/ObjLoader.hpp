@@ -12,6 +12,7 @@
 #include <glm.hpp>
 #include <Geometry.hpp>
 #include <PBA.hpp>
+#include <limits>
 
 namespace OBJ
 {
@@ -38,6 +39,24 @@ namespace OBJ
         std::vector<glm::vec3> normals;
         std::vector<Face> faces;
     };
+
+    inline std::tuple<glm::vec3, glm::vec3, glm::vec3> computeMinMaxDim(const Model& model) {
+        if (model.vertices.empty()) {
+            return std::make_tuple(glm::vec3(0.0f), glm::vec3(0.0f), glm::vec3(0.0f));
+        }
+    
+        glm::vec3 minPoint = model.vertices[0];
+        glm::vec3 maxPoint = model.vertices[0];
+    
+        for (const auto& vertex : model.vertices) {
+            minPoint = glm::min(minPoint, vertex);
+            maxPoint = glm::max(maxPoint, vertex);
+        }
+    
+        glm::vec3 dimensions = maxPoint - minPoint;
+    
+        return std::make_tuple(minPoint, maxPoint, dimensions);
+    }
 
     inline Model parse(const std::string& filename) {
         Model model;

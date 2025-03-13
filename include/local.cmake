@@ -4,9 +4,11 @@
 #CHANGES TO THIS FILE WILL NOT CARRY OVER
 set(
 	HEADER_FILES_INCLUDE_FOLDER
-	./include/Collider.hpp
+	./include/BugTools.hpp
 	./include/Geometry.hpp
 	./include/Grid.hpp
 	./include/ObjLoader.hpp
 	./include/PBA.hpp
+	./include/PBAMT.hpp
+	./include/ThreadPool.hpp
 )

@@ -1,5 +1,5 @@
-#ifndef PBA_HPP
-#define PBA_HPP
+#ifndef PBAMT_HPP
+#define PBAMT_HPP
 
 #include <vector>
 #include <cmath>
@@ -14,14 +14,17 @@
 #include <glm.hpp>
 #include <Grid.hpp>
 #include <BugTools.hpp>
+#include <ThreadPool.hpp>
 
-//#define ASSERT(x) { if (!(x)) __debugbreak(); }
+
+#include <random>
+#include <algorithm>
 
 //https://github.com/bernhardmgruber/bpa/blob/master/src/lib/bpa.cpp#L104
 //https://gamedev.stackexchange.com/questions/60630/how-do-i-find-the-circumcenter-of-a-triangle-in-3d
 
 
-namespace PBA
+namespace PBAMT
 {
 
     typedef std::list<Geometry::Edge*> Front;
@@ -116,17 +119,18 @@ namespace PBA
         return true; 
     }
 
-    static bool find_seed_triangle(Grid& grid, float radius, glm::vec3* sphere_pos, Geometry::Face* f)
+    static bool find_seed_triangle(glm::ivec3& cellidx, Grid& grid, float radius, float margin, glm::vec3* sphere_pos, Geometry::Face* f)
     {
         //from
         //https://github.com/bernhardmgruber/bpa/blob/master/src/lib/bpa.cpp
+
+        Cell& cell = grid.cell(cellidx);
+
         LOG("Looking for seed");
-        for(auto& cell : grid.getCells())
-        {
-            const auto avgNormal = glm::normalize(std::accumulate(begin(cell), end(cell), glm::vec3{}, [](glm::vec3 acc, const Geometry::Vertex* p) { return acc + p->normal; }));
+        const auto avgNormal = glm::normalize(std::accumulate(begin(cell), end(cell), glm::vec3{}, [](glm::vec3 acc, const Geometry::Vertex* p) { return acc + p->normal; }));
             for (auto& p1 : cell) {
                 if(p1->used) {continue;}
-                auto neighborhood = grid.sphericalNeighborhood(p1->position, {p1->position});
+                auto neighborhood = grid.sphericalNeighborhoodWithMargin(p1->position, margin, {p1->position});
                 std::sort(
                     begin(neighborhood), end(neighborhood), [&](Geometry::Vertex* a, Geometry::Vertex* b) { return glm::length(a->position - p1->position) < glm::length(b->position - p1->position); });
 
@@ -135,19 +139,22 @@ namespace PBA
                     for (auto& p3 : neighborhood) {
                         if(p3->used) {continue;}
                         if (p2 == p3) continue;
-                            
+                        if(
+                            !grid.isPointWithinCellWithMargin(p1->position, cellidx, margin) ||
+                            !grid.isPointWithinCellWithMargin(p2->position, cellidx, margin) ||
+                            !grid.isPointWithinCellWithMargin(p3->position, cellidx, margin)) continue;
+
                         (*f) = {p1, p2, p3};
                         if (glm::dot(f->normal(), avgNormal) < 0) continue;
 
                         if (calc_sphere_center(p1->position, p2->position, p3->position, f->normal(), radius, sphere_pos) && Geometry::ballIsEmpty(*sphere_pos, neighborhood, radius)) {
                             
-                            LOG("Found seed");
+                            LOG("Found seed")
                             return true;
                         }
                     }
                 }
             }
-        }
         
         LOG("No seed");
         return false;
@@ -173,12 +180,16 @@ namespace PBA
         return false;
     }
 
-    static PivotResult ball_pivote(Grid& grid, Geometry::Edge* edge, float rad)
+    static PivotResult ball_pivote(Grid& grid, glm::ivec3 cellidx, Geometry::Edge* edge, float rad, float margin)
     {
         Geometry::Vertex* v0 = edge->start;
         Geometry::Vertex* v1 = edge->end;
+
+        ASSERT(grid.isPointWithinCellWithMargin(v0->position, cellidx, margin), "Start point not in cell");
+        ASSERT(grid.isPointWithinCellWithMargin(v1->position, cellidx, margin), "End point not in cell");
+
         glm::vec3 middle = (v0->position + v1->position) / 2.0f;
-        std::vector<Geometry::Vertex*> neighbourhood = grid.sphericalNeighborhood(middle, {v0->position, v1->position, edge->across->position});
+        std::vector<Geometry::Vertex*> neighbourhood = grid.sphericalNeighborhoodWithMargin(middle, margin, {v0->position, v1->position, edge->across->position});
 
         glm::vec3 n_midSphere = glm::normalize(edge->sphere_center - middle);
 
@@ -186,6 +197,8 @@ namespace PBA
         PivotResult result;
         for(Geometry::Vertex* vert : neighbourhood)
         {
+            if(!grid.isPointWithinCellWithMargin(vert->position, cellidx, margin)) continue;
+
             glm::vec3 fnorm = Geometry::Face{v1, v0, vert}.normal();
 
             if(glm::dot(fnorm, vert->normal) < 0) continue;
@@ -221,6 +234,21 @@ namespace PBA
         return result;
     }
 
+    template <typename T>
+    static std::vector<T> getRandomSubset(const std::vector<T>& vec, size_t subsetSize) {
+        if (subsetSize > vec.size()) {
+            throw std::runtime_error("Subset size cannot be larger than the original vector size!");
+        }
+
+        std::vector<T> shuffledVec = vec; // Copy the vector to avoid modifying the original
+        static std::random_device rd; 
+        static std::mt19937 gen(rd()); 
+
+        std::shuffle(shuffledVec.begin(), shuffledVec.end(), gen); // Shuffle elements
+
+        return std::vector<T>(shuffledVec.begin(), shuffledVec.begin() + subsetSize);
+    }
+
 
      /**
      * @brief Takes in a ref to a model and fills out the face data
@@ -228,62 +256,93 @@ namespace PBA
      * @param model point cloud data set
      * @param p size of the p-ball
      */
-    static Geometry::Mesh PivotBall(VertList& point_data, float p)
+    static Geometry::Mesh PivotBall(VertList& point_data, float p, float margin, size_t threads)
     {
 
         Grid grid{point_data, p};
-
-        Front F;
         Geometry::Mesh m;
 
-        bool found_seed = true;
+        std::array<std::vector<glm::ivec3>, 8> idxlist = grid.getThreadCellList();
 
-        while(found_seed)
+        ThreadPool tpool{threads};
+        
+        auto task = [&grid, &m, margin, p](glm::ivec3 cellidx){
+            Front F;
+            bool found_seed = true;
+            while(found_seed)
+            {
+                found_seed = false;
+                glm::vec3 sphere_center;
+                {
+                    Geometry::Face face;
+                    if(find_seed_triangle(cellidx, grid, p, margin, &sphere_center, &face))
+                    {
+                        auto [e0, e1, e2] = output_triangle(face, m, sphere_center);
+                        F.push_back(e0);
+                        F.push_back(e1);
+                        F.push_back(e2);
+                        found_seed = true;
+                    }
+                }
+
+                Geometry::Edge* e_ij = nullptr;
+                while(get_active_edge(F, &e_ij))
+                {
+                    ASSERT(e_ij != nullptr, "e_ij was null")
+                    Geometry::Vertex* s_i = e_ij->start;
+                    Geometry::Vertex* s_j = e_ij->end;
+                    PivotResult pvRes = ball_pivote(grid, cellidx, e_ij, p, margin);
+                    ASSERT(pvRes.vert != nullptr, "pvRes was null")
+                    if(pvRes.valid && (!pvRes.vert->used || on_front(pvRes.vert)))
+                    {
+                        Geometry::Vertex* s_k = pvRes.vert;
+
+                        ASSERT(grid.isPointWithinCellWithMargin(s_i->position, cellidx, margin), "Point_s_i not in cell");
+                        ASSERT(grid.isPointWithinCellWithMargin(s_j->position, cellidx, margin), "Point_s_j not in cell");
+                        ASSERT(grid.isPointWithinCellWithMargin(s_k->position, cellidx, margin), "Point_s_k not in cell");
+
+                        output_triangle({s_i, s_k, s_j}, m, pvRes.spherePos);
+                        auto [e_ik, e_kj] = join(e_ij, s_k, F, m.m_edges, pvRes.spherePos);
+                        if(auto e_ki = edge_rev_in_front(e_ik)) { glue(e_ik, e_ki); }
+                        if(auto e_jk = edge_rev_in_front(e_kj)) { glue(e_kj, e_jk); }
+                        LOG("Found Triangles: " << m.m_triangles.size())
+                    }
+                    else
+                    {
+                        e_ij->state = Geometry::BOUNDARY;
+                        LOG("Found Boundary")
+                    }
+                }
+
+                
+            }
+
+        };
+        for(size_t i = 0; i < 8; ++i)
         {
-            found_seed = false;
-            glm::vec3 sphere_center;
-            {
-                Geometry::Face face;
-                if(find_seed_triangle(grid, p, &sphere_center, &face))
-                {
-                    auto [e0, e1, e2] = output_triangle(face, m, sphere_center);
-                    F.push_back(e0);
-                    F.push_back(e1);
-                    F.push_back(e2);
-                    found_seed = true;
-                }
-            }
-
-            Geometry::Edge* e_ij = nullptr;
-            while(get_active_edge(F, &e_ij))
-            {
-                ASSERT(e_ij != nullptr, "e_ij was null")
-                Geometry::Vertex* s_i = e_ij->start;
-                Geometry::Vertex* s_j = e_ij->end;
-                PivotResult pvRes = ball_pivote(grid, e_ij, p);
-                ASSERT(pvRes.vert != nullptr, "pvRes was null")
-                if(pvRes.valid && (!pvRes.vert->used || on_front(pvRes.vert)))
-                {
-                    Geometry::Vertex* s_k = pvRes.vert;
-                    output_triangle({s_i, s_k, s_j}, m, pvRes.spherePos);
-                    auto [e_ik, e_kj] = join(e_ij, s_k, F, m.m_edges, pvRes.spherePos);
-                    if(auto e_ki = edge_rev_in_front(e_ik)) { glue(e_ik, e_ki); }
-                    if(auto e_jk = edge_rev_in_front(e_kj)) { glue(e_kj, e_jk); }
-                    LOG("Found Triangles: " << m.m_triangles.size());
-                }
-                else
-                {
-                    e_ij->state = Geometry::BOUNDARY;
-                    LOG("Found Boundary");
-                }
-            }
-
-            
+           for(auto& idx : idxlist[i])
+           {
+               tpool.enqueue(
+                   task , idx
+               );
+           }
         }
+
+        /* for(auto& idx : getRandomSubset(idxlist[0], 8))
+            {
+                tpool.enqueue(
+                    task , idx
+                );
+            } */
+        
+        tpool.stop();
+
+        glm::ivec3 dims = grid.getDims();
+        LOG("GRID: DIM [ " << dims.x << "; " << dims.y << "; " << dims.z << " ]");
 
         return m;
     }
 
 }
 
-#endif //PBA_HPP
+#endif //PBAMT_HPP
