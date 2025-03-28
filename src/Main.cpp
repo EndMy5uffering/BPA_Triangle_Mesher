@@ -82,7 +82,7 @@ void threadedTest()
     PBA::VertList vlist = OBJ::ModelToVertexList(data);
 
     float len = glm::max(dimensions.x, glm::max(dimensions.y, dimensions.z)) / 30.0f;
-    Geometry::Mesh m{std::move(PBAMT::PivotBall(vlist, len, len * 0.8f, 6))};
+    Geometry::Mesh m{std::move(PBAMT::PivotBall(vlist, len, len * 0.5f, 6))};
     
     std::cout << "Done meshing\n"; 
     std::cout << "Saving file\n"; 

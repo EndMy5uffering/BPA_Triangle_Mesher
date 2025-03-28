@@ -128,15 +128,18 @@ namespace PBAMT
 
         LOG("Looking for seed");
         const auto avgNormal = glm::normalize(std::accumulate(begin(cell), end(cell), glm::vec3{}, [](glm::vec3 acc, const Geometry::Vertex* p) { return acc + p->normal; }));
-            for (auto& p1 : cell) {
+            for (Geometry::Vertex* p1 : cell) {
+                ASSERT(p1 != nullptr, "p1 was null")
                 if(p1->used) {continue;}
-                auto neighborhood = grid.sphericalNeighborhoodWithMargin(p1->position, margin, {p1->position});
+                auto neighborhood = grid.sphericalNeighborhood(p1->position, {p1->position});
                 std::sort(
                     begin(neighborhood), end(neighborhood), [&](Geometry::Vertex* a, Geometry::Vertex* b) { return glm::length(a->position - p1->position) < glm::length(b->position - p1->position); });
 
-                for (auto& p2 : neighborhood) {
+                for (Geometry::Vertex* p2 : neighborhood) {
+                    ASSERT(p2 != nullptr, "p2 was null")
                     if(p2->used) {continue;}
-                    for (auto& p3 : neighborhood) {
+                    for (Geometry::Vertex* p3 : neighborhood) {
+                        ASSERT(p3 != nullptr, "p3 was null")
                         if(p3->used) {continue;}
                         if (p2 == p3) continue;
                         if(
@@ -165,6 +168,7 @@ namespace PBAMT
         Geometry::Vertex* vert;
         glm::vec3 spherePos;
         bool valid = false;
+        bool outsideMargin = false;
     };
 
     static bool vertOnInnerEdge(Geometry::Vertex* vert, Geometry::Edge* edge)
@@ -185,11 +189,14 @@ namespace PBAMT
         Geometry::Vertex* v0 = edge->start;
         Geometry::Vertex* v1 = edge->end;
 
+        ASSERT(v0 != nullptr, "v0 was null")
+        ASSERT(v1 != nullptr, "v1 was null")
+
         ASSERT(grid.isPointWithinCellWithMargin(v0->position, cellidx, margin), "Start point not in cell");
         ASSERT(grid.isPointWithinCellWithMargin(v1->position, cellidx, margin), "End point not in cell");
 
         glm::vec3 middle = (v0->position + v1->position) / 2.0f;
-        std::vector<Geometry::Vertex*> neighbourhood = grid.sphericalNeighborhoodWithMargin(middle, margin, {v0->position, v1->position, edge->across->position});
+        std::vector<Geometry::Vertex*> neighbourhood = grid.sphericalNeighborhood(middle, {v0->position, v1->position, edge->across->position});
 
         glm::vec3 n_midSphere = glm::normalize(edge->sphere_center - middle);
 
@@ -197,8 +204,6 @@ namespace PBAMT
         PivotResult result;
         for(Geometry::Vertex* vert : neighbourhood)
         {
-            if(!grid.isPointWithinCellWithMargin(vert->position, cellidx, margin)) continue;
-
             glm::vec3 fnorm = Geometry::Face{v1, v0, vert}.normal();
 
             if(glm::dot(fnorm, vert->normal) < 0) continue;
@@ -230,6 +235,8 @@ namespace PBAMT
         {
             result.valid = true;    
         }
+        ASSERT(result.vert != nullptr, "result vert was null")
+        result.outsideMargin = result.valid && !grid.isPointWithinCellWithMargin(result.vert->position, cellidx, margin);
 
         return result;
     }
@@ -293,10 +300,12 @@ namespace PBAMT
                     Geometry::Vertex* s_j = e_ij->end;
                     PivotResult pvRes = ball_pivote(grid, cellidx, e_ij, p, margin);
                     ASSERT(pvRes.vert != nullptr, "pvRes was null")
-                    if(pvRes.valid && (!pvRes.vert->used || on_front(pvRes.vert)))
+                    if(pvRes.valid && !pvRes.outsideMargin && (!pvRes.vert->used || on_front(pvRes.vert)))
                     {
                         Geometry::Vertex* s_k = pvRes.vert;
-
+                        ASSERT(s_k != nullptr, "s_k was null");
+                        ASSERT(s_j != nullptr, "s_j was null");
+                        ASSERT(s_i != nullptr, "s_i was null");
                         ASSERT(grid.isPointWithinCellWithMargin(s_i->position, cellidx, margin), "Point_s_i not in cell");
                         ASSERT(grid.isPointWithinCellWithMargin(s_j->position, cellidx, margin), "Point_s_j not in cell");
                         ASSERT(grid.isPointWithinCellWithMargin(s_k->position, cellidx, margin), "Point_s_k not in cell");
@@ -306,6 +315,11 @@ namespace PBAMT
                         if(auto e_ki = edge_rev_in_front(e_ik)) { glue(e_ik, e_ki); }
                         if(auto e_jk = edge_rev_in_front(e_kj)) { glue(e_kj, e_jk); }
                         LOG("Found Triangles: " << m.m_triangles.size())
+                    }
+                    else if(pvRes.outsideMargin && pvRes.valid) 
+                    { 
+                        LOG("Valid but outside of margin")
+                        e_ij->state = Geometry::FROZEN;
                     }
                     else
                     {
@@ -318,14 +332,20 @@ namespace PBAMT
             }
 
         };
+
+        int k = 2;
         for(size_t i = 0; i < 8; ++i)
         {
            for(auto& idx : idxlist[i])
            {
-               tpool.enqueue(
-                   task , idx
-               );
+               //tpool.enqueue(
+               //    task , idx
+               //);
+               task(idx);
+               k--;
+               if(k <= 0) break;
            }
+           break;
         }
 
         /* for(auto& idx : getRandomSubset(idxlist[0], 8))
@@ -335,7 +355,7 @@ namespace PBAMT
                 );
             } */
         
-        tpool.stop();
+        //tpool.stop();
 
         glm::ivec3 dims = grid.getDims();
         LOG("GRID: DIM [ " << dims.x << "; " << dims.y << "; " << dims.z << " ]");
